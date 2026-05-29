@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>BIA - Mapa de Procesos - Control Interno</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .table-container { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
+        .matriz-table { border-collapse: collapse; width: 100%; min-width: 1400px; table-layout: fixed; }
+        .matriz-table th, .matriz-table td { border: 1px solid #e2e8f0; padding: 8px 12px; vertical-align: top; overflow: hidden; }
+        .matriz-table th { background-color: #eef2ff; font-weight: 600; position: sticky; top: 0; z-index: 10; position: relative; }
+        .editable-cell { cursor: pointer; transition: background 0.2s; }
+        .editable-cell:hover { background-color: #fef3c7; }
+        .badge-prioridad { display: inline-block; padding: 4px 10px; border-radius: 40px; font-size: 0.7rem; font-weight: 600; }
+        textarea.editable-textarea { width: 100%; min-height: 80px; border: 1px solid #818cf8; border-radius: 8px; padding: 6px; }
+        select.editable-select { width: 100%; padding: 6px; border: 1px solid #818cf8; border-radius: 8px; }
+        .dropzone { border: 2px dashed #cbd5e1; border-radius: 1rem; transition: all 0.2s; cursor: pointer; }
+        .dropzone.drag-over { background-color: #eef2ff; border-color: #6366f1; }
+        .resize-handle { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; background: transparent; z-index: 20; }
+        .resize-handle:hover { background-color: #6366f1; opacity: 0.4; }
+        .filtro-columna { width: 100%; font-size: 0.7rem; padding: 4px; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; }
+        .filtro-rapido { border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; background: white; }
+        
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 24px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        .modal-textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+        .modal-textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            ring: 2px solid #6366f1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+<div class="max-w-[1600px] mx-auto px-4 py-6">
+        <div class="flex flex-col items-center mb-6">
+        <div class="flex justify-center items-end gap-4 mb-3">
+            <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/LogoCI-G.png?raw=true" alt="Logo Control Interno" class="h-16 md:h-20 w-auto object-contain">
+            <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/Logo%20CSW.png?raw=true" alt="Logo CSW" class="h-8 md:h-10 w-auto object-contain">
+        </div>
+        <div class="text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-indigo-800">BIA</h1>
+            <p class="text-sm text-gray-500 mt-1">Mapa de Procesos | COMA - SurtiCOMA - Súper Willys</p>
+        </div>
+    </div>
+
+    <div class="flex border-b border-gray-200 mb-5">
+        <button id="tabMatriz" class="py-2 px-5 font-medium text-indigo-600 border-b-2 border-indigo-600 transition">Matriz de Procesos</button>
+        <button id="tabBatch" class="py-2 px-5 font-medium text-gray-500 hover:text-gray-700 transition">Carga Masiva (Batch)</button>
+    </div>
+
+    <!-- FILTROS RÁPIDOS -->
+    <div id="filtrosRapidosContainer" class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-5">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Unidad Negocio</label>
+                <select id="filtroRapidoUnidad" class="filtro-rapido w-full">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Área</label>
+                <select id="filtroRapidoArea" class="filtro-rapido w-full">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo Macro</label>
+                <select id="filtroRapidoTipoMacro" class="filtro-rapido w-full">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Macroproceso</label>
+                <select id="filtroRapidoMacro" class="filtro-rapido w-full">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Prioridad</label>
+                <select id="filtroRapidoPrioridad" class="filtro-rapido w-full">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex justify-end mt-3">
+            <button id="btnLimpiarTodosFiltros" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                <i class="fas fa-eraser"></i> Limpiar todos los filtros
+            </button>
+        </div>
+    </div>
+
+    <div id="contentMatriz">
+        <div class="flex justify-end mb-4">
+            <button id="btnAgregarFila" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-5 rounded-lg text-sm flex items-center gap-2">
+                <i class="fas fa-plus-circle"></i> Agregar fila
+            </button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md border overflow-hidden">
+            <div class="table-container">
+                <table class="matriz-table" id="matrizTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tablaBody">
+                        <tr><td colspan="13" class="text-center py-10 text-gray-400">📋 No hay procesos registrados. Haga clic en "Agregar fila" para comenzar.纭
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="mt-2 text-right text-sm text-gray-500" id="contadorRegistros">0 registros</div>
+        
+        <div class="flex flex-wrap justify-between items-center gap-3 mt-4">
+            <div class="flex gap-2">
+                <button id="btnExportarExcel" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+                <button id="btnExportarJSON" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-code"></i> Exportar JSON</button>
+                <button id="btnImportarJSON" class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-upload"></i> Importar JSON</button>
+                <input type="file" id="archivoJSONInput" accept=".json" class="hidden" />
+            </div>
+            <button id="btnLimpiarTodo" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-trash-alt"></i> Limpiar todo</button>
+        </div>
+    </div>
+
+    <div id="contentBatch" class="hidden">
+        <div class="bg-white rounded-xl shadow-md p-6 border">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">📂 Carga Masiva desde Excel</h2>
+            <p class="text-sm text-gray-500 mb-4">Arrastre su archivo <strong>Mapeo de Procesos.xlsx</strong>. La primera fila debe contener los encabezados.</p>
+            <div id="dropzone" class="dropzone w-full p-10 text-center bg-gray-50 rounded-xl">
+                <i class="fas fa-cloud-upload-alt text-4xl text-indigo-400 mb-2"></i>
+                <p class="text-gray-600">Arrastra tu archivo Excel aquí o haz clic para seleccionar</p>
+                <p class="text-xs text-gray-400 mt-1">Soporta .xlsx, .xls</p>
+                <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" />
+            </div>
+            <div id="validationResult" class="mt-4 hidden"></div>
+            <div id="batchResult" class="mt-4 text-sm"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL PARA EDICIÓN DE TEXTO -->
+<div id="editModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold text-gray-800" id="modalTitle">Editar contenido</h3>
+            <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        <div class="modal-body">
+            <textarea id="modalTextarea" class="modal-textarea" placeholder="Escriba aquí el contenido. Use Enter para saltos de línea. Presione Ctrl+Enter para guardar."></textarea>
+            <p class="text-xs text-gray-400 mt-2">💡 Consejo: Use <kbd class="px-1 py-0.5 bg-gray-100 rounded">Ctrl</kbd> + <kbd class="px-1 py-0.5 bg-gray-100 rounded">Enter</kbd> para guardar rápidamente</p>
+        </div>
+        <div class="modal-footer">
+            <button id="cancelModalBtn" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
+            <button id="saveModalBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // CONFIGURACIÓN
+    // ==========================================
+    const COLUMNAS = [
+        { field: "unidadNegocio", label: "Unidad Negocio", expected: "Unidad Negocio", tipo: "select", opciones: ["COMA", "SurtiCOMA", "Súper Willys"] },
+        { field: "area", label: "Área", expected: "Área", tipo: "select", opciones: ["Comercial","Construcción","Contraloría","Control Vehicular","Tecnologías de la Información","Expansión","Finanzas","Jurídico","Logística","Operaciones","Suministros","Recursos Humanos","Seguridad Patrimonial","Auditoría Interna"] },
+        { field: "tipoMacro", label: "Tipo Macro", expected: "Tipo Macro", tipo: "select", opciones: ["Primario", "Soporte"] },
+        { field: "macroproceso", label: "Macroproceso", expected: "Macroproceso", tipo: "textarea" },
+        { field: "proceso", label: "Proceso", expected: "Proceso", tipo: "textarea" },
+        { field: "procedimiento", label: "Procedimiento", expected: "Procedimiento", tipo: "textarea" },
+        { field: "documentosSoporte", label: "Documentos Soporte", expected: "Documentos Soporte", tipo: "textarea" },
+        { field: "input", label: "Input", expected: "Input", tipo: "textarea" },
+        { field: "output", label: "Output", expected: "Output", tipo: "textarea" },
+        { field: "riesgos", label: "Riesgos Inherentes", expected: "Riesgos Inherentes", tipo: "textarea" },
+        { field: "partesRelacionadas", label: "Partes Relacionadas", expected: "Partes Relacionadas", tipo: "textarea" },
+        { field: "prioridad", label: "Prioridad", expected: "Prioridad", tipo: "select", opciones: ["Crítica", "Alta", "Media", "Baja"] }
+    ];
+
+    let procesosData = [];
+    let nextId = 1;
+    let filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" };
+    let filtrosColumna = {};
+    let columnWidth = 160;
+    
+    let modalContext = {
+        isOpen: false,
+        field: null,
+        id: null,
+        currentValue: "",
+        tipo: null,
+        opciones: []
+    };
+
+    // ==========================================
+    // FUNCIÓN DE ORDENAMIENTO
+    // ==========================================
+    function ordenarDatos(data) {
+        return [...data].sort((a, b) => {
+            // 1. Ordenar por Unidad Negocio
+            const unidadA = (a.unidadNegocio || "").toLowerCase();
+            const unidadB = (b.unidadNegocio || "").toLowerCase();
+            if (unidadA !== unidadB) return unidadA.localeCompare(unidadB);
+            
+            // 2. Ordenar por Área
+            const areaA = (a.area || "").toLowerCase();
+            const areaB = (b.area || "").toLowerCase();
+            if (areaA !== areaB) return areaA.localeCompare(areaB);
+            
+            // 3. Ordenar por Tipo Macro
+            const tipoA = (a.tipoMacro || "").toLowerCase();
+            const tipoB = (b.tipoMacro || "").toLowerCase();
+            if (tipoA !== tipoB) return tipoA.localeCompare(tipoB);
+            
+            // 4. Ordenar por Macroproceso
+            const macroA = (a.macroproceso || "").toLowerCase();
+            const macroB = (b.macroproceso || "").toLowerCase();
+            if (macroA !== macroB) return macroA.localeCompare(macroB);
+            
+            // 5. Ordenar por Proceso
+            const procesoA = (a.proceso || "").toLowerCase();
+            const procesoB = (b.proceso || "").toLowerCase();
+            if (procesoA !== procesoB) return procesoA.localeCompare(procesoB);
+            
+            // 6. Ordenar por Procedimiento
+            const procA = (a.procedimiento || "").toLowerCase();
+            const procB = (b.procedimiento || "").toLowerCase();
+            return procA.localeCompare(procB);
+        });
+    }
+
+    function guardarStorage() {
+        localStorage.setItem("mapaProcesosDataFinalV14", JSON.stringify(procesosData));
+        localStorage.setItem("nextIdFinalV14", nextId);
+        localStorage.setItem("columnWidthFinalV14", columnWidth);
+    }
+
+    function cargarStorage() {
+        const data = localStorage.getItem("mapaProcesosDataFinalV14");
+        if (data) {
+            procesosData = JSON.parse(data);
+            nextId = parseInt(localStorage.getItem("nextIdFinalV14")) || (procesosData.length ? Math.max(...procesosData.map(p=>p.id)) + 1 : 1);
+        } else {
+            procesosData = [];
+            nextId = 1;
+        }
+        const savedWidth = localStorage.getItem("columnWidthFinalV14");
+        if (savedWidth) columnWidth = parseInt(savedWidth);
+        renderTabla();
+    }
+
+    function aplicarAnchoTodasColumnas(nuevoAncho) {
+        columnWidth = nuevoAncho;
+        const ths = document.querySelectorAll('#tableHead th');
+        for (let i = 0; i < ths.length; i++) {
+            ths[i].style.width = columnWidth + 'px';
+            ths[i].style.minWidth = columnWidth + 'px';
+        }
+        const filas = document.querySelectorAll('#tablaBody tr');
+        for (const fila of filas) {
+            const celdas = fila.querySelectorAll('td');
+            for (let i = 0; i < celdas.length; i++) {
+                celdas[i].style.width = columnWidth + 'px';
+            }
+        }
+        guardarStorage();
+    }
+
+    function normalizarTexto(texto) {
+        if (!texto) return "";
+        return texto.toString().toLowerCase().trim().replace(/[áéíóú]/g, function(m) {
+            return { 'á':'a', 'é':'e', 'í':'i', 'ó':'o', 'ú':'u' }[m];
+        }).replace(/\s+/g, ' ');
+    }
+
+    function validarEncabezados(headers) {
+        const errores = [];
+        const mapeo = {};
+        for (let i = 0; i < COLUMNAS.length; i++) {
+            const col = COLUMNAS[i];
+            const expectedNorm = normalizarTexto(col.expected);
+            let encontrado = false;
+            for (let j = 0; j < headers.length; j++) {
+                const headerNorm = normalizarTexto(headers[j]);
+                if (headerNorm === expectedNorm) {
+                    encontrado = true;
+                    mapeo[col.field] = j;
+                    break;
+                }
+            }
+            if (!encontrado) errores.push(`"${col.expected}"`);
+        }
+        return { esValido: errores.length === 0, errores, mapeo };
+    }
+
+    function getDataFiltrada() {
+        let data = procesosData.filter(row => {
+            if (filtrosRapidos.unidadNegocio && row.unidadNegocio !== filtrosRapidos.unidadNegocio) return false;
+            if (filtrosRapidos.area && row.area !== filtrosRapidos.area) return false;
+            if (filtrosRapidos.tipoMacro && row.tipoMacro !== filtrosRapidos.tipoMacro) return false;
+            if (filtrosRapidos.macroproceso && row.macroproceso !== filtrosRapidos.macroproceso) return false;
+            if (filtrosRapidos.prioridad && row.prioridad !== filtrosRapidos.prioridad) return false;
+            for (const [field, valor] of Object.entries(filtrosColumna)) {
+                if (valor && row[field] !== valor) return false;
+            }
+            return true;
+        });
+        
+        // Aplicar ordenamiento automático
+        return ordenarDatos(data);
+    }
+
+    function actualizarTodosLosFiltros() {
+        const dataFiltrada = getDataFiltrada();
+        
+        const camposRapidos = [
+            { id: "filtroRapidoUnidad", field: "unidadNegocio", label: "Unidad Negocio" },
+            { id: "filtroRapidoArea", field: "area", label: "Área" },
+            { id: "filtroRapidoTipoMacro", field: "tipoMacro", label: "Tipo Macro" },
+            { id: "filtroRapidoMacro", field: "macroproceso", label: "Macroproceso" },
+            { id: "filtroRapidoPrioridad", field: "prioridad", label: "Prioridad" }
+        ];
+        
+        camposRapidos.forEach(campo => {
+            const select = document.getElementById(campo.id);
+            if (!select) return;
+            
+            const valores = new Set();
+            dataFiltrada.forEach(item => {
+                if (item[campo.field] && item[campo.field].trim()) {
+                    valores.add(item[campo.field].trim());
+                }
+            });
+            
+            let options = `<option value="">${campo.label === "Unidad Negocio" ? "Todas" : campo.label === "Área" ? "Todas" : campo.label === "Prioridad" ? "Todas" : "Todos"}</option>`;
+            Array.from(valores).sort().forEach(v => {
+                options += `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
+            });
+            select.innerHTML = options;
+            
+            if (filtrosRapidos[campo.field] && valores.has(filtrosRapidos[campo.field])) {
+                select.value = filtrosRapidos[campo.field];
+            } else {
+                select.value = "";
+                filtrosRapidos[campo.field] = "";
+            }
+        });
+        
+        COLUMNAS.forEach(col => {
+            const select = document.getElementById(`filtro_${col.field}`);
+            if (!select) return;
+            
+            const valores = new Set();
+            dataFiltrada.forEach(item => { 
+                if (item[col.field] && item[col.field].trim()) {
+                    valores.add(item[col.field].trim());
+                }
+            });
+            
+            let options = '<option value="">Todos</option>';
+            Array.from(valores).sort().forEach(v => { 
+                options += `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; 
+            });
+            select.innerHTML = options;
+            
+            if (filtrosColumna[col.field] && valores.has(filtrosColumna[col.field])) {
+                select.value = filtrosColumna[col.field];
+            } else {
+                select.value = "";
+                filtrosColumna[col.field] = "";
+            }
+        });
+    }
+
+    function aplicarFiltros() {
+        renderTabla();
+        actualizarTodosLosFiltros();
+    }
+
+    function limpiarTodosFiltros() {
+        filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" };
+        filtrosColumna = {};
+        
+        const camposRapidosIds = ["filtroRapidoUnidad", "filtroRapidoArea", "filtroRapidoTipoMacro", "filtroRapidoMacro", "filtroRapidoPrioridad"];
+        camposRapidosIds.forEach(id => {
+            const select = document.getElementById(id);
+            if (select) select.value = "";
+        });
+        
+        COLUMNAS.forEach(col => {
+            const select = document.getElementById(`filtro_${col.field}`);
+            if (select) select.value = "";
+        });
+        
+        aplicarFiltros();
+    }
+
+    function renderHeader() {
+        const thead = document.getElementById("tableHead");
+        let html = '<tr>';
+        for (let i = 0; i < COLUMNAS.length; i++) {
+            const col = COLUMNAS[i];
+            html += `<th style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: relative;">
+                        ${col.label}
+                        <select class="filtro-columna" data-filtro="${col.field}" id="filtro_${col.field}">
+                            <option value="">Todos</option>
+                        </select>
+                        <div class="resize-handle" data-col="${i}"></div>
+                    </th>`;
+        }
+        html += `<th style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: relative;">Acción<div class="resize-handle" data-col="${COLUMNAS.length}"></div></th>`;
+        html += `<tr>`;
+        thead.innerHTML = html;
+        
+        COLUMNAS.forEach(col => {
+            const select = document.getElementById(`filtro_${col.field}`);
+            if (select) {
+                select.addEventListener("change", () => { 
+                    filtrosColumna[col.field] = select.value;
+                    aplicarFiltros();
+                });
+            }
+        });
+        
+        document.querySelectorAll('.resize-handle').forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startWidth = columnWidth;
+                const onMouseMove = (moveEvent) => {
+                    const deltaX = moveEvent.clientX - startX;
+                    let newWidth = startWidth + deltaX;
+                    if (newWidth < 100) newWidth = 100;
+                    if (newWidth > 500) newWidth = 500;
+                    aplicarAnchoTodasColumnas(newWidth);
+                };
+                const onMouseUp = () => {
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                };
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', onMouseUp);
+            });
+        });
+    }
+
+    function abrirModalEdicion(field, id, tipo, opciones, currentValue, fieldLabel) {
+        modalContext.field = field;
+        modalContext.id = id;
+        modalContext.currentValue = currentValue;
+        modalContext.tipo = tipo;
+        modalContext.opciones = opciones;
+        
+        const modal = document.getElementById("editModal");
+        const modalTitle = document.getElementById("modalTitle");
+        const textarea = document.getElementById("modalTextarea");
+        
+        modalTitle.textContent = `Editando: ${fieldLabel}`;
+        textarea.value = currentValue;
+        
+        modal.classList.remove("hidden");
+        
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+    
+    function cerrarModal() {
+        document.getElementById("editModal").classList.add("hidden");
+        modalContext.isOpen = false;
+    }
+    
+    function guardarModal() {
+        const newValue = document.getElementById("modalTextarea").value;
+        const index = procesosData.findIndex(p => p.id === modalContext.id);
+        if (index !== -1) {
+            procesosData[index][modalContext.field] = newValue;
+            guardarStorage();
+            aplicarFiltros();
+        }
+        cerrarModal();
+    }
+
+    function renderTabla() {
+        const dataFiltrada = getDataFiltrada();
+        const tbody = document.getElementById("tablaBody");
+        
+        if (dataFiltrada.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="13" class="text-center py-10 text-gray-400">📋 No hay procesos registrados con los filtros seleccionados.纭`;
+            document.getElementById("contadorRegistros").innerText = "0 registros";
+            return;
+        }
+
+        let html = "";
+        for (const item of dataFiltrada) {
+            html += `<tr data-id="${item.id}">`;
+            for (const col of COLUMNAS) {
+                let valor = item[col.field] || '';
+                let display = valor;
+                if (col.field === 'prioridad' && valor) {
+                    const badgeClass = { 'Crítica':'bg-gray-900 text-white', 'Alta':'bg-red-100 text-red-800', 'Media':'bg-yellow-100 text-yellow-800', 'Baja':'bg-green-100 text-green-800' }[valor] || '';
+                    display = `<span class="badge-prioridad ${badgeClass}">${escapeHtml(valor)}</span>`;
+                } else if (col.tipo === 'textarea') {
+                    display = escapeHtml(valor).replace(/\n/g, '<br>');
+                } else {
+                    display = escapeHtml(valor);
+                }
+                html += `<td style="width: ${columnWidth}px; min-width: ${columnWidth}px;" class="editable-cell" data-field="${col.field}" data-id="${item.id}" data-tipo="${col.tipo}" data-opciones='${JSON.stringify(col.opciones || [])}' data-label="${col.label}">${display || '—'}</td>`;
+            }
+            html += `<td style="width: ${columnWidth}px; min-width: ${columnWidth}px;" class="text-center"><button onclick="eliminarFila(${item.id})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button></td>`;
+            html += `</tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById("contadorRegistros").innerText = `${dataFiltrada.length} registros (total: ${procesosData.length})`;
+
+        document.querySelectorAll('.editable-cell').forEach(cell => {
+            cell.addEventListener('dblclick', (e) => {
+                const field = cell.getAttribute('data-field');
+                const id = parseInt(cell.getAttribute('data-id'));
+                const tipo = cell.getAttribute('data-tipo');
+                const opciones = JSON.parse(cell.getAttribute('data-opciones') || '[]');
+                const label = cell.getAttribute('data-label') || field;
+                let currentValue = cell.innerText === '—' ? '' : cell.innerText;
+                
+                if (tipo === 'select') {
+                    editarCeldaInline(cell, field, id, tipo, opciones, currentValue);
+                } else {
+                    abrirModalEdicion(field, id, tipo, opciones, currentValue, label);
+                }
+            });
+        });
+    }
+
+    function editarCeldaInline(cell, field, id, tipo, opciones, currentValue) {
+        if (cell.querySelector('input, select, textarea')) return;
+        let input = document.createElement('select');
+        input.innerHTML = '<option value="">Seleccionar...</option>';
+        opciones.forEach(opt => { input.innerHTML += `<option value="${opt}" ${currentValue === opt ? 'selected' : ''}>${opt}</option>`; });
+        input.className = "editable-select";
+        
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+
+        const guardar = () => {
+            let newValue = input.value;
+            const index = procesosData.findIndex(p => p.id === id);
+            if (index !== -1) { procesosData[index][field] = newValue; guardarStorage(); }
+            aplicarFiltros();
+        };
+        input.addEventListener('change', guardar);
+    }
+
+    function agregarFila() {
+        const nueva = { id: nextId++ };
+        COLUMNAS.forEach(col => { nueva[col.field] = ''; });
+        procesosData.push(nueva);
+        guardarStorage();
+        aplicarFiltros();
+    }
+
+    window.eliminarFila = (id) => {
+        if (confirm("¿Eliminar esta fila?")) {
+            procesosData = procesosData.filter(p => p.id !== id);
+            if (!procesosData.length) nextId = 1;
+            guardarStorage();
+            aplicarFiltros();
+        }
+    };
+
+    function limpiarTodo() {
+        if (confirm("⚠️ ¿Eliminar TODOS los registros?")) {
+            procesosData = []; nextId = 1; filtrosRapidos = {}; filtrosColumna = {};
+            guardarStorage();
+            renderHeader();
+            aplicarFiltros();
+        }
+    }
+
+    function exportarExcel() {
+        if (!procesosData.length) { alert("No hay datos para exportar"); return; }
+        const headers = COLUMNAS.map(c => c.label);
+        let filas = [headers];
+        const datosOrdenados = ordenarDatos(procesosData);
+        datosOrdenados.forEach(item => { filas.push(COLUMNAS.map(c => item[c.field] || '')); });
+        let csv = filas.map(fila => fila.map(c => { let cld = String(c); if (cld.includes(',') || cld.includes('"') || cld.includes('\n')) { cld = cld.replace(/"/g, '""'); cld = `"${cld}"`; } return cld; }).join(',')).join('\n');
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "mapa_procesos.csv"; link.click(); URL.revokeObjectURL(link.href);
+    }
+
+    function exportarJSON() { 
+        if (!procesosData.length) { alert("No hay datos para exportar"); return; } 
+        const datosOrdenados = ordenarDatos(procesosData);
+        const data = datosOrdenados.map(({ id, ...rest }) => rest); 
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); 
+        const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "mapa_procesos.json"; link.click(); URL.revokeObjectURL(link.href); 
+    }
+    
+    function importarJSON() { 
+        const input = document.getElementById("archivoJSONInput"); 
+        input.click(); 
+        input.onchange = (e) => { 
+            const file = e.target.files[0]; 
+            if (!file) return; 
+            const reader = new FileReader(); 
+            reader.onload = (ev) => { 
+                try { 
+                    const imported = JSON.parse(ev.target.result); 
+                    if (!Array.isArray(imported)) throw new Error("Debe ser un arreglo"); 
+                    for (let imp of imported) { 
+                        const existe = procesosData.findIndex(ex => ex.unidadNegocio === imp.unidadNegocio && ex.area === imp.area && ex.macroproceso === imp.macroproceso && ex.proceso === imp.proceso); 
+                        if (existe !== -1) { 
+                            procesosData[existe] = { ...procesosData[existe], ...imp, id: procesosData[existe].id }; 
+                        } else { 
+                            procesosData.push({ id: nextId++, ...imp }); 
+                        } 
+                    } 
+                    guardarStorage(); 
+                    aplicarFiltros(); 
+                    alert("Importación completada correctamente"); 
+                } catch(err) { 
+                    alert("Error en el archivo JSON: " + err.message); 
+                } 
+                input.value = ''; 
+            }; 
+            reader.readAsText(file, "UTF-8"); 
+        }; 
+    }
+
+    async function procesarExcelConValidacion(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                let sheet = workbook.Sheets["Mapeo de Procesos"];
+                if (!sheet) sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                if (!rawData || rawData.length < 2) { reject(new Error("El archivo no contiene datos suficientes")); return; }
+                const headers = rawData[0].map(h => h || "");
+                const validacion = validarEncabezados(headers);
+                if (!validacion.esValido) { reject(new Error(`Encabezados no válidos. Faltan: ${validacion.errores.join(", ")}`)); return; }
+                const mapeo = validacion.mapeo;
+                let agregados = 0, actualizados = 0;
+                const nuevosRegistros = [];
+                for (let i = 1; i < rawData.length; i++) {
+                    const fila = rawData[i];
+                    if (!fila || fila.length === 0) continue;
+                    const unidad = fila[mapeo["unidadNegocio"]] ? String(fila[mapeo["unidadNegocio"]]).trim() : "";
+                    const area = fila[mapeo["area"]] ? String(fila[mapeo["area"]]).trim() : "";
+                    const macro = fila[mapeo["macroproceso"]] ? String(fila[mapeo["macroproceso"]]).trim() : "";
+                    const proceso = fila[mapeo["proceso"]] ? String(fila[mapeo["proceso"]]).trim() : "";
+                    if (!unidad || !area || !macro || !proceso) continue;
+                    const nuevoRegistro = {
+                        unidadNegocio: unidad, area: area, tipoMacro: fila[mapeo["tipoMacro"]] ? String(fila[mapeo["tipoMacro"]]).trim() : "",
+                        macroproceso: macro, proceso: proceso, procedimiento: fila[mapeo["procedimiento"]] ? String(fila[mapeo["procedimiento"]]).trim() : "",
+                        documentosSoporte: fila[mapeo["documentosSoporte"]] ? String(fila[mapeo["documentosSoporte"]]).trim() : "",
+                        input: fila[mapeo["input"]] ? String(fila[mapeo["input"]]).trim() : "",
+                        output: fila[mapeo["output"]] ? String(fila[mapeo["output"]]).trim() : "",
+                        riesgos: fila[mapeo["riesgos"]] ? String(fila[mapeo["riesgos"]]).trim() : "",
+                        partesRelacionadas: fila[mapeo["partesRelacionadas"]] ? String(fila[mapeo["partesRelacionadas"]]).trim() : "",
+                        prioridad: fila[mapeo["prioridad"]] ? String(fila[mapeo["prioridad"]]).trim() : ""
+                    };
+                    const existeIndex = procesosData.findIndex(p => p.unidadNegocio === nuevoRegistro.unidadNegocio && p.area === nuevoRegistro.area && p.macroproceso === nuevoRegistro.macroproceso && p.proceso === nuevoRegistro.proceso);
+                    if (existeIndex !== -1) {
+                        let huboCambios = false;
+                        for (const col of COLUMNAS) {
+                            if (procesosData[existeIndex][col.field] !== nuevoRegistro[col.field]) {
+                                procesosData[existeIndex][col.field] = nuevoRegistro[col.field];
+                                huboCambios = true;
+                            }
+                        }
+                        if (huboCambios) actualizados++;
+                    } else {
+                        nuevoRegistro.id = nextId++;
+                        nuevosRegistros.push(nuevoRegistro);
+                        agregados++;
+                    }
+                }
+                for (const nuevo of nuevosRegistros) procesosData.push(nuevo);
+                guardarStorage();
+                aplicarFiltros();
+                resolve({ agregados, actualizados, totalFilas: rawData.length - 1, totalFinal: procesosData.length });
+            };
+            reader.onerror = () => reject(new Error("Error al leer el archivo"));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function initBatchUpload() {
+        const dropzone = document.getElementById("dropzone");
+        const fileInput = document.getElementById("excelInput");
+        const batchResult = document.getElementById("batchResult");
+        const validationResult = document.getElementById("validationResult");
+        
+        dropzone.addEventListener("click", () => fileInput.click());
+        dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag-over"); });
+        dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
+        dropzone.addEventListener("drop", async (e) => { 
+            e.preventDefault(); dropzone.classList.remove("drag-over"); 
+            const file = e.dataTransfer.files[0]; 
+            if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) { 
+                batchResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando archivo...';
+                validationResult.classList.add("hidden");
+                try { 
+                    const r = await procesarExcelConValidacion(file); 
+                    batchResult.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-lg">✅ Carga completada<br>📊 Filas: ${r.totalFilas}<br>➕ Nuevos: ${r.agregados}<br>🔄 Actualizados: ${r.actualizados}<br>📌 Total: ${r.totalFinal}</div>`; 
+                } catch(err) { 
+                    batchResult.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ Error: ${err.message}</div>`;
+                    if (err.message.includes("Encabezados")) {
+                        validationResult.classList.remove("hidden");
+                        validationResult.innerHTML = `<div class="bg-yellow-50 border p-3 rounded-lg">⚠️ ${err.message}<br>Esperados: ${COLUMNAS.map(c=>`"${c.expected}"`).join(", ")}</div>`;
+                    }
+                } 
+            } else { batchResult.innerHTML = '<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ Archivo no válido</div>'; } 
+        });
+        fileInput.addEventListener("change", async (e) => { 
+            const file = e.target.files[0]; 
+            if (file) { 
+                batchResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+                try { const r = await procesarExcelConValidacion(file); batchResult.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-lg">✅ Carga completada<br>➕ Nuevos: ${r.agregados}<br>🔄 Actualizados: ${r.actualizados}<br>📌 Total: ${r.totalFinal}</div>`; } 
+                catch(err) { batchResult.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ ${err.message}</div>`; }
+                fileInput.value = ''; 
+            } 
+        });
+    }
+
+    function initModal() {
+        const modal = document.getElementById("editModal");
+        const closeBtn = document.getElementById("closeModalBtn");
+        const cancelBtn = document.getElementById("cancelModalBtn");
+        const saveBtn = document.getElementById("saveModalBtn");
+        const textarea = document.getElementById("modalTextarea");
+        
+        closeBtn.onclick = cerrarModal;
+        cancelBtn.onclick = cerrarModal;
+        saveBtn.onclick = guardarModal;
+        
+        modal.onclick = (e) => {
+            if (e.target === modal) cerrarModal();
+        };
+        
+        textarea.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && e.ctrlKey) {
+                e.preventDefault();
+                guardarModal();
+            }
+        });
+    }
+
+    function init() {
+        cargarStorage();
+        renderHeader();
+        aplicarFiltros();
+        initModal();
+        
+        document.getElementById("filtroRapidoUnidad").addEventListener("change", () => {
+            filtrosRapidos.unidadNegocio = document.getElementById("filtroRapidoUnidad").value;
+            aplicarFiltros();
+        });
+        document.getElementById("filtroRapidoArea").addEventListener("change", () => {
+            filtrosRapidos.area = document.getElementById("filtroRapidoArea").value;
+            aplicarFiltros();
+        });
+        document.getElementById("filtroRapidoTipoMacro").addEventListener("change", () => {
+            filtrosRapidos.tipoMacro = document.getElementById("filtroRapidoTipoMacro").value;
+            aplicarFiltros();
+        });
+        document.getElementById("filtroRapidoMacro").addEventListener("change", () => {
+            filtrosRapidos.macroproceso = document.getElementById("filtroRapidoMacro").value;
+            aplicarFiltros();
+        });
+        document.getElementById("filtroRapidoPrioridad").addEventListener("change", () => {
+            filtrosRapidos.prioridad = document.getElementById("filtroRapidoPrioridad").value;
+            aplicarFiltros();
+        });
+        
+        document.getElementById("btnAgregarFila").onclick = agregarFila;
+        document.getElementById("btnExportarExcel").onclick = exportarExcel;
+        document.getElementById("btnExportarJSON").onclick = exportarJSON;
+        document.getElementById("btnImportarJSON").onclick = importarJSON;
+        document.getElementById("btnLimpiarTodo").onclick = limpiarTodo;
+        document.getElementById("btnLimpiarTodosFiltros").onclick = limpiarTodosFiltros;
+        initBatchUpload();
+
+        document.getElementById("tabMatriz").onclick = () => { 
+            document.getElementById("contentMatriz").classList.remove("hidden"); 
+            document.getElementById("contentBatch").classList.add("hidden"); 
+            document.getElementById("tabMatriz").classList.add("border-b-2","border-indigo-600","text-indigo-600"); 
+            document.getElementById("tabBatch").classList.remove("border-b-2","border-indigo-600","text-indigo-600"); 
+            document.getElementById("tabBatch").classList.add("text-gray-500"); 
+        };
+        document.getElementById("tabBatch").onclick = () => { 
+            document.getElementById("contentBatch").classList.remove("hidden"); 
+            document.getElementById("contentMatriz").classList.add("hidden"); 
+            document.getElementById("tabBatch").classList.add("border-b-2","border-indigo-600","text-indigo-600"); 
+            document.getElementById("tabMatriz").classList.remove("border-b-2","border-indigo-600","text-indigo-600"); 
+            document.getElementById("tabMatriz").classList.add("text-gray-500"); 
+        };
+    }
+
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+    
+    init();
+</script>
+
+<footer style="background: #f8fafc; padding: 0.75rem 1.5rem; border-top: 1px solid #e9edf2;">
+    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;">
+        <img src="https://raw.githubusercontent.com/internalcontrolengineering/Desarrollos/main/LogoCI-G.png" 
+             alt="Control Interno" 
+             style="height: 22px; width: auto; object-fit: contain; opacity: 0.5;">
+        <div style="width: 1px; height: 24px; background-color: #cbd5e1;"></div>
+        <div style="display: flex; flex-direction: column; line-height: 1.2;">
+            <span style="font-size: 0.5rem; color: #0A2540;">Control Interno</span>
+            <span style="font-size: 0.4rem; color: #94a3b8; font-weight: 500;">Ingeniería de Control</span>
+        </div>
+        <div style="width: 1px; height: 24px; background-color: #cbd5e1;"></div>
+        <div style="display: flex; flex-direction: column; line-height: 1.2;">
+            <span style="font-size: 0.5rem; color: #0A2540;">BIA - Mapa de Procesos</span>
+            <span style="font-size: 0.4rem; color: #94a3b8; font-weight: 500;">V1.0 | Mayo 2026</span>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>
