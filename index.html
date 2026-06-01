@@ -2,30 +2,215 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>BIA - Mapa de Procesos - Control Interno</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { font-family: 'Inter', sans-serif; }
-        .table-container { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
-        .matriz-table { border-collapse: collapse; width: 100%; min-width: 1400px; table-layout: fixed; }
-        .matriz-table th, .matriz-table td { border: 1px solid #e2e8f0; padding: 8px 12px; vertical-align: top; overflow: hidden; }
-        .matriz-table th { background-color: #eef2ff; font-weight: 600; position: sticky; top: 0; z-index: 10; position: relative; }
-        .editable-cell { cursor: pointer; transition: background 0.2s; }
-        .editable-cell:hover { background-color: #fef3c7; }
-        .badge-prioridad { display: inline-block; padding: 4px 10px; border-radius: 40px; font-size: 0.7rem; font-weight: 600; }
-        textarea.editable-textarea { width: 100%; min-height: 80px; border: 1px solid #818cf8; border-radius: 8px; padding: 6px; }
-        select.editable-select { width: 100%; padding: 6px; border: 1px solid #818cf8; border-radius: 8px; }
-        .dropzone { border: 2px dashed #cbd5e1; border-radius: 1rem; transition: all 0.2s; cursor: pointer; }
-        .dropzone.drag-over { background-color: #eef2ff; border-color: #6366f1; }
-        .resize-handle { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; background: transparent; z-index: 20; }
-        .resize-handle:hover { background-color: #6366f1; opacity: 0.4; }
-        .filtro-columna { width: 100%; font-size: 0.7rem; padding: 4px; margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; }
-        .filtro-rapido { border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; background: white; }
         
-        /* Modal styles */
+        body { background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); }
+        
+        /* Contenedor de tabla responsive */
+        .table-container { 
+            overflow-x: auto; 
+            overflow-y: auto; 
+            max-height: 55vh;
+            position: relative;
+            border: 1px solid #d1d1d1;
+            border-radius: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Tabla con scroll horizontal en móviles */
+        .matriz-table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            min-width: 1200px; 
+            table-layout: fixed; 
+        }
+        
+        /* En pantallas muy pequeñas, la tabla se adapta */
+        @media (max-width: 768px) {
+            .matriz-table { 
+                min-width: 900px;
+                font-size: 0.75rem;
+            }
+            .matriz-table th, .matriz-table td { 
+                padding: 6px 8px; 
+            }
+            .filtro-rapido { font-size: 0.70rem; padding: 4px 6px; }
+            .tab-active, .tab-inactive { padding: 6px 12px !important; font-size: 0.75rem !important; }
+            .role-badge { font-size: 10px; padding: 4px 10px; }
+            h1 { font-size: 1.5rem !important; }
+        }
+        
+        /* En tablets */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .matriz-table { min-width: 1100px; }
+            .matriz-table th, .matriz-table td { padding: 8px 10px; }
+        }
+        
+        .matriz-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+        }
+        
+        .matriz-table th {
+            background-color: #e0e0e0;
+            font-weight: 900;
+            color: #2d2d2d;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            border-bottom: 2px solid #b0b0b0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+        .matriz-table th {
+            font-weight: 800 !important;
+            text-shadow: 0 0.5px 0 rgba(0,0,0,0.1);
+        }
+        
+        .matriz-table thead tr th {
+            background-color: #e0e0e0;
+            position: sticky;
+            top: 0;
+        }
+        
+        .matriz-table td { 
+            border: 1px solid #d1d1d1; 
+            padding: 10px 12px; 
+            vertical-align: top; 
+            overflow: hidden; 
+            background-color: white;
+        }
+        
+        .matriz-table tbody tr:nth-child(even) td { background-color: #ffffff; }
+        .matriz-table tbody tr:nth-child(odd) td { background-color: #fafafa; }
+        
+        .matriz-table tbody tr:hover td { 
+            background-color: #ececec !important;
+            transition: background 0.2s ease;
+        }
+        
+        .editable-cell { cursor: pointer; transition: background 0.2s; }
+        .editable-cell:hover { background-color: #e0e0e0; }
+        
+        .badge-prioridad { display: inline-block; padding: 4px 10px; border-radius: 40px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
+        @media (max-width: 768px) {
+            .badge-prioridad { padding: 2px 6px; font-size: 0.65rem; }
+        }
+        
+        textarea.editable-textarea { width: 100%; min-height: 80px; border: 1px solid #a0a0a0; border-radius: 8px; padding: 6px; }
+        select.editable-select { width: 100%; padding: 6px; border: 1px solid #a0a0a0; border-radius: 8px; }
+        .dropzone { border: 2px dashed #c0c0c0; border-radius: 1rem; transition: all 0.2s; cursor: pointer; }
+        .dropzone.drag-over { background-color: #e8e8e8; border-color: #888888; }
+        .resize-handle { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; background: transparent; z-index: 40; }
+        .resize-handle:hover { background-color: #888888; opacity: 0.4; }
+        .filtro-columna { width: 100%; font-size: 0.7rem; padding: 4px; margin-top: 6px; border: 1px solid #c0c0c0; border-radius: 6px; background: white; }
+        .filtro-rapido { border: 1px solid #c0c0c0; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; background: white; }
+        
+        /* Filtros rápidos responsive */
+        .filtros-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        @media (max-width: 640px) {
+            .filtros-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+        }
+        
+        /* Botones superiores */
+        .botones-superiores {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .botones-inferiores {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        @media (max-width: 640px) {
+            .botones-superiores {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .botones-inferiores {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .botones-inferiores .flex {
+                justify-content: center;
+            }
+        }
+        
+        /* Pestañas responsive */
+        .tabs-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 24px;
+        }
+        
+        .tab-active {
+            background-color: #4a4a4a !important;
+            color: white !important;
+            font-weight: 700 !important;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .tab-inactive {
+            background-color: transparent !important;
+            color: #6b7280 !important;
+            font-weight: 500 !important;
+        }
+        
+        .tab-inactive:hover {
+            color: #374151 !important;
+            background-color: #f3f4f6 !important;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        /* Header responsive */
+        .header-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 640px) {
+            .header-container {
+                flex-direction: column;
+                text-align: center;
+            }
+            .logos-container {
+                order: 1;
+            }
+            .role-badge {
+                order: 2;
+            }
+            .placeholder {
+                display: none;
+            }
+        }
+        
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -37,6 +222,7 @@
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            padding: 16px;
         }
         .modal-content {
             background: white;
@@ -46,176 +232,777 @@
             max-height: 80vh;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
         }
-        .modal-header {
-            padding: 16px 24px;
-            border-bottom: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        @media (max-width: 640px) {
+            .modal-content {
+                width: 95%;
+                max-height: 85vh;
+            }
+            .modal-header { padding: 12px 16px; }
+            .modal-body { padding: 16px; }
+            .modal-footer { padding: 12px 16px; }
+            .modal-textarea { min-height: 200px; }
         }
-        .modal-body {
-            padding: 24px;
-            flex: 1;
-            overflow-y: auto;
+        
+        .modal-header { padding: 16px 24px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background: #f5f5f5; border-radius: 16px 16px 0 0; }
+        .modal-body { padding: 24px; flex: 1; overflow-y: auto; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid #e0e0e0; display: flex; justify-content: flex-end; gap: 12px; background: #f5f5f5; border-radius: 0 0 16px 16px; }
+        .modal-textarea { width: 100%; min-height: 300px; padding: 12px; border: 1px solid #c0c0c0; border-radius: 8px; font-family: monospace; font-size: 14px; line-height: 1.5; resize: vertical; }
+        .modal-textarea:focus { outline: none; border-color: #888888; }
+
+        /* Carrusel responsive */
+        .carousel-container { 
+            perspective: 1200px; 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 60px;
+            padding: 40px 0; 
+            flex-wrap: wrap; 
         }
-        .modal-footer {
-            padding: 16px 24px;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
+        @media (max-width: 640px) {
+            .carousel-container { gap: 10px; }
+            .carousel-btn { width: 36px; height: 36px; }
+            .carousel-btn i { font-size: 1.2rem; }
+            .carousel-3d { width: 220px; height: 300px; }
+            .carousel-card { padding: 15px; }
+            .carousel-card i { font-size: 40px !important; }
+            .carousel-card h3 { font-size: 20px !important; }
+            .carousel-card p { font-size: 11px !important; }
         }
-        .modal-textarea {
-            width: 100%;
-            min-height: 300px;
-            padding: 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .carousel-3d { width: 260px; height: 350px; }
+        }
+        
+        .carousel-3d { position: relative; width: 280px; height: 380px; transform-style: preserve-3d; transition: transform 0.5s ease-in-out; }
+        @media (max-width: 640px) { .carousel-3d { width: 220px; height: 300px; } }
+        
+        .carousel-card {
+            position: absolute; width: 100%; height: 100%; border-radius: 20px; box-shadow: 0 25px 40px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer;
+            transition: all 0.3s ease; padding: 30px; background: white; left: 0; top: 0;
+            border: 2px solid transparent;
+        }
+        .carousel-card:hover { transform: scale(1.02); box-shadow: 0 30px 50px rgba(0,0,0,0.2); border: 2px solid #888888; }
+        .carousel-card i { font-size: 56px; margin-bottom: 16px; color: #555555; }
+        .carousel-card h3 { font-size: 24px; font-weight: bold; margin-bottom: 12px; color: #2d2d2d; }
+        .carousel-card p { font-size: 13px; color: #666666; }
+        .carousel-btn {
+            background: #555555; color: white; border: none; width: 44px; height: 44px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+        }
+        .carousel-btn:hover { background: #333333; transform: scale(1.1); }
+        
+        .password-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
+        .password-box { background: white; border-radius: 20px; padding: 30px; width: 350px; max-width: 90%; text-align: center; }
+        @media (max-width: 480px) { .password-box { padding: 20px; width: 90%; } }
+        .password-box input { width: 100%; padding: 12px; margin: 20px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+        .error-message { color: red; font-size: 12px; margin-top: 10px; }
+        .btn-login { background: #555555; color: white; border: none; padding: 10px 30px; border-radius: 25px; cursor: pointer; transition: all 0.3s; }
+        .btn-login:hover { background: #333333; transform: scale(1.05); }
+        .btn-cerrar-sesion { background: #999999; color: white; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.3s; border: none; white-space: nowrap; }
+        @media (max-width: 480px) { .btn-cerrar-sesion { font-size: 10px; padding: 5px 10px; } }
+        .btn-cerrar-sesion:hover { background: #777777; transform: scale(1.02); }
+        .role-badge { background: #555555; color: white; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
+        @media (max-width: 480px) { .role-badge { font-size: 10px; padding: 4px 10px; } }
+        
+        .timer-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11px;
             font-family: monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            resize: vertical;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            cursor: pointer;
         }
-        .modal-textarea:focus {
-            outline: none;
-            border-color: #6366f1;
-            ring: 2px solid #6366f1;
+        @media (max-width: 480px) {
+            .timer-container { font-size: 9px; padding: 4px 8px; bottom: 5px; left: 5px; }
+        }
+        
+        .timer-warning { background: rgba(200, 100, 100, 0.9); animation: pulse 1s infinite; }
+        .timer-expired { background: rgba(180, 60, 60, 1); animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        
+        /* Footer responsive */
+        footer .flex { flex-wrap: wrap; gap: 8px; }
+        @media (max-width: 480px) {
+            footer .flex { gap: 6px; }
+            footer span { font-size: 0.45rem !important; }
+            footer img { height: 14px; }
+        }
+
+        /* Notificaciones */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+            max-width: 90%;
+            word-wrap: break-word;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .notification-success { background-color: #10b981; }
+        .notification-error { background-color: #ef4444; }
+        .notification-info { background-color: #3b82f6; }
+        .notification-warning { background-color: #f59e0b; }
+        
+        /* Indicador de sincronización */
+        .sync-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #666;
+            margin-left: 10px;
+        }
+        .sync-indicator i {
+            font-size: 12px;
+        }
+        .sync-indicator.syncing {
+            color: #3b82f6;
+        }
+        .sync-indicator.synced {
+            color: #10b981;
+        }
+        .sync-indicator.error {
+            color: #ef4444;
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body>
 
-<div class="max-w-[1600px] mx-auto px-4 py-6">
-        <div class="flex flex-col items-center mb-6">
-        <div class="flex justify-center items-end gap-4 mb-3">
-            <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/LogoCI-G.png?raw=true" alt="Logo Control Interno" class="h-16 md:h-20 w-auto object-contain">
-            <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/Logo%20CSW.png?raw=true" alt="Logo CSW" class="h-8 md:h-10 w-auto object-contain">
-        </div>
-        <div class="text-center">
-            <h1 class="text-2xl md:text-3xl font-bold text-indigo-800">BIA</h1>
-            <p class="text-sm text-gray-500 mt-1">Mapa de Procesos | COMA - SurtiCOMA - Súper Willys</p>
+<div id="loginScreen" class="min-h-screen flex flex-col items-center justify-center p-4" style="background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);">
+    <div class="text-center mb-6">
+        <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/LogoCI-BC.png?raw=true" alt="Logo Control Interno" class="h-16 md:h-20 mx-auto mb-3 object-contain">
+        <h1 class="text-4xl md:text-6xl font-bold text-white mb-1">BIA</h1>
+        <h2 class="text-xl md:text-3xl font-bold text-gray-300">Mapa de Procesos</h2>
+    </div>
+    <div class="carousel-container">
+        <button id="carouselLeft" class="carousel-btn"><i class="fas fa-chevron-left fa-2x"></i></button>
+        <div id="carousel3d" class="carousel-3d"></div>
+        <button id="carouselRight" class="carousel-btn"><i class="fas fa-chevron-right fa-2x"></i></button>
+    </div>
+</div>
+
+<div id="passwordModal" class="password-modal hidden">
+    <div class="password-box">
+        <h3 class="text-xl font-bold mb-4">Acceso Manager</h3>
+        <p class="text-gray-600 mb-2">Ingrese la contraseña de acceso</p>
+        <input type="password" id="managerPassword" placeholder="Contraseña">
+        <div id="passwordError" class="error-message hidden">Contraseña incorrecta</div>
+        <div class="flex gap-3 justify-center mt-4 flex-wrap">
+            <button id="cancelPassword" class="px-4 py-2 border rounded-lg">Cancelar</button>
+            <button id="confirmPassword" class="btn-login">Ingresar</button>
         </div>
     </div>
+</div>
 
-    <div class="flex border-b border-gray-200 mb-5">
-        <button id="tabMatriz" class="py-2 px-5 font-medium text-indigo-600 border-b-2 border-indigo-600 transition">Matriz de Procesos</button>
-        <button id="tabBatch" class="py-2 px-5 font-medium text-gray-500 hover:text-gray-700 transition">Carga Masiva (Batch)</button>
-    </div>
-
-    <!-- FILTROS RÁPIDOS -->
-    <div id="filtrosRapidosContainer" class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-5">
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Unidad Negocio</label>
-                <select id="filtroRapidoUnidad" class="filtro-rapido w-full">
-                    <option value="">Todas</option>
-                </select>
+<div id="mainApp" style="display: none;">
+    <div class="max-w-[1600px] mx-auto px-3 md:px-6 py-4 md:py-6">
+        <div class="header-container">
+            <div class="role-badge">
+                <i class="fas fa-user-circle"></i>
+                <span id="userRoleDisplay">Process Owner</span>
             </div>
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Área</label>
-                <select id="filtroRapidoArea" class="filtro-rapido w-full">
-                    <option value="">Todas</option>
-                </select>
+            <div class="logos-container flex justify-center items-end gap-3 md:gap-4">
+                <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/LogoCI-G.png?raw=true" alt="Logo Control Interno" class="h-10 md:h-14 w-auto object-contain">
+                <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/Logo%20CSW.png?raw=true" alt="Logo CSW" class="h-6 md:h-8 w-auto object-contain">
             </div>
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo Macro</label>
-                <select id="filtroRapidoTipoMacro" class="filtro-rapido w-full">
-                    <option value="">Todos</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Macroproceso</label>
-                <select id="filtroRapidoMacro" class="filtro-rapido w-full">
-                    <option value="">Todos</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Prioridad</label>
-                <select id="filtroRapidoPrioridad" class="filtro-rapido w-full">
-                    <option value="">Todas</option>
-                </select>
-            </div>
+            <div class="placeholder" style="width: 100px;"></div>
         </div>
-        <div class="flex justify-end mt-3">
-            <button id="btnLimpiarTodosFiltros" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-                <i class="fas fa-eraser"></i> Limpiar todos los filtros
-            </button>
-        </div>
-    </div>
-
-    <div id="contentMatriz">
-        <div class="flex justify-end mb-4">
-            <button id="btnAgregarFila" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-5 rounded-lg text-sm flex items-center gap-2">
-                <i class="fas fa-plus-circle"></i> Agregar fila
-            </button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md border overflow-hidden">
-            <div class="table-container">
-                <table class="matriz-table" id="matrizTable">
-                    <thead id="tableHead"></thead>
-                    <tbody id="tablaBody">
-                        <tr><td colspan="13" class="text-center py-10 text-gray-400">📋 No hay procesos registrados. Haga clic en "Agregar fila" para comenzar.纭
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="mt-2 text-right text-sm text-gray-500" id="contadorRegistros">0 registros</div>
         
-        <div class="flex flex-wrap justify-between items-center gap-3 mt-4">
-            <div class="flex gap-2">
-                <button id="btnExportarExcel" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-file-excel"></i> Exportar Excel</button>
-                <button id="btnExportarJSON" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-code"></i> Exportar JSON</button>
-                <button id="btnImportarJSON" class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-upload"></i> Importar JSON</button>
-                <input type="file" id="archivoJSONInput" accept=".json" class="hidden" />
+        <div class="text-center mb-4 md:mb-5">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-gray-800">BIA</h1>
+            <p class="text-sm md:text-lg font-semibold text-gray-600 mt-1 md:mt-2">Levantamiento de Procesos</p>
+            <div id="syncIndicator" class="sync-indicator">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span>Sincronizado</span>
             </div>
-            <button id="btnLimpiarTodo" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-1"><i class="fas fa-trash-alt"></i> Limpiar todo</button>
+        </div>
+
+        <div class="tabs-container bg-gray-100 p-1 rounded-lg mb-4 md:mb-6">
+            <button id="tabMatriz" class="tab-active py-2 px-4 md:px-6 rounded-md transition-all duration-200 text-xs md:text-sm font-semibold">Mapa de Procesos</button>
+            <button id="tabBatch" class="tab-inactive py-2 px-4 md:px-6 rounded-md transition-all duration-200 text-xs md:text-sm font-medium">Carga Masiva (Batch)</button>
+        </div>
+
+        <div id="filtrosRapidosContainer" class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4 mb-4 md:mb-5">
+            <div class="filtros-grid">
+                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Unidad Negocio</label><select id="filtroRapidoUnidad" class="filtro-rapido w-full"><option value="">Todas</option></select></div>
+                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Área</label><select id="filtroRapidoArea" class="filtro-rapido w-full"><option value="">Todas</option></select></div>
+                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo Macro</label><select id="filtroRapidoTipoMacro" class="filtro-rapido w-full"><option value="">Todos</option></select></div>
+                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Macroproceso</label><select id="filtroRapidoMacro" class="filtro-rapido w-full"><option value="">Todos</option></select></div>
+                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Prioridad</label><select id="filtroRapidoPrioridad" class="filtro-rapido w-full"><option value="">Todas</option></select></div>
+            </div>
+        </div>
+
+        <div id="contentMatriz">
+            <div class="botones-superiores">
+                <button id="btnLimpiarTodosFiltros" class="bg-red-600 hover:bg-red-700 text-white px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium flex items-center gap-2">
+                    <i class="fas fa-eraser"></i> Limpiar todos los filtros
+                </button>
+                <button id="btnAgregarFila" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 md:px-5 rounded-lg text-xs md:text-sm flex items-center gap-2">
+                    <i class="fas fa-plus-circle"></i> Agregar fila
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-md border overflow-hidden">
+                <div class="table-container">
+                    <table class="matriz-table" id="matrizTable">
+                        <thead id="tableHead"></thead>
+                        <tbody id="tablaBody">
+                            <tr><td colspan="14" class="text-center py-10 text-gray-400">📋 No hay procesos registrados. Haga clic en "Agregar fila" para comenzar.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="mt-2 text-right text-sm text-gray-500" id="contadorRegistros">0 registros</div>
+            
+            <div class="botones-inferiores">
+                <div class="flex gap-2 flex-wrap">
+                    <button id="btnExportarExcel" class="bg-green-600 hover:bg-green-700 text-white py-2 px-3 md:px-4 rounded-lg text-xs md:text-sm flex items-center gap-1"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+                    <button id="btnExportarJSON" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 md:px-4 rounded-lg text-xs md:text-sm flex items-center gap-1"><i class="fas fa-code"></i> Exportar JSON</button>
+                    <button id="btnImportarJSON" class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 md:px-4 rounded-lg text-xs md:text-sm flex items-center gap-1"><i class="fas fa-upload"></i> Importar JSON</button>
+                    <input type="file" id="archivoJSONInput" accept=".json" class="hidden" />
+                </div>
+                <div class="flex gap-2">
+                    <button id="btnLimpiarTodo" class="bg-red-600 hover:bg-red-700 text-white py-2 px-3 md:px-4 rounded-lg text-xs md:text-sm flex items-center gap-1"><i class="fas fa-trash-alt"></i> Limpiar todo</button>
+                    <button id="cerrarSesionBtn" class="btn-cerrar-sesion flex items-center gap-1"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="contentBatch" class="hidden">
+            <div class="bg-white rounded-xl shadow-md p-4 md:p-6 border">
+                <h2 class="text-lg md:text-xl font-bold text-gray-700 mb-4">📂 Carga Masiva desde Excel</h2>
+                <p class="text-sm text-gray-500 mb-4">Arrastre su archivo <strong>Mapeo de Procesos.xlsx</strong>. La primera fila debe contener los encabezados.</p>
+                <div id="dropzone" class="dropzone w-full p-6 md:p-10 text-center bg-gray-50 rounded-xl">
+                    <i class="fas fa-cloud-upload-alt text-3xl md:text-4xl text-gray-500 mb-2"></i>
+                    <p class="text-gray-600 text-sm md:text-base">Arrastra tu archivo Excel aquí o haz clic para seleccionar</p>
+                    <p class="text-xs text-gray-400 mt-1">Soporta .xlsx, .xls</p>
+                    <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" />
+                </div>
+                <div id="validationResult" class="mt-4 hidden"></div>
+                <div id="batchResult" class="mt-4 text-sm"></div>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button id="cerrarSesionBtnBatch" class="btn-cerrar-sesion flex items-center gap-1"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>
+            </div>
         </div>
     </div>
 
-    <div id="contentBatch" class="hidden">
-        <div class="bg-white rounded-xl shadow-md p-6 border">
-            <h2 class="text-xl font-bold text-gray-700 mb-4">📂 Carga Masiva desde Excel</h2>
-            <p class="text-sm text-gray-500 mb-4">Arrastre su archivo <strong>Mapeo de Procesos.xlsx</strong>. La primera fila debe contener los encabezados.</p>
-            <div id="dropzone" class="dropzone w-full p-10 text-center bg-gray-50 rounded-xl">
-                <i class="fas fa-cloud-upload-alt text-4xl text-indigo-400 mb-2"></i>
-                <p class="text-gray-600">Arrastra tu archivo Excel aquí o haz clic para seleccionar</p>
-                <p class="text-xs text-gray-400 mt-1">Soporta .xlsx, .xls</p>
-                <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" />
+    <div id="editModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="text-base md:text-lg font-semibold text-gray-800" id="modalTitle">Editar contenido</h3>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
             </div>
-            <div id="validationResult" class="mt-4 hidden"></div>
-            <div id="batchResult" class="mt-4 text-sm"></div>
+            <div class="modal-body">
+                <textarea id="modalTextarea" class="modal-textarea" placeholder="Escriba aquí el contenido. Use Enter para saltos de línea. Presione Ctrl+Enter para guardar."></textarea>
+                <p class="text-xs text-gray-400 mt-2">💡 Consejo: Use <kbd class="px-1 py-0.5 bg-gray-100 rounded">Ctrl</kbd> + <kbd class="px-1 py-0.5 bg-gray-100 rounded">Enter</kbd> para guardar rápidamente</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelModalBtn" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">Cancelar</button>
+                <button id="saveModalBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">Guardar</button>
+            </div>
         </div>
     </div>
+
+    <footer class="bg-gray-100 py-2 px-3 md:px-6 border-t border-gray-300 mt-6 md:mt-8">
+        <div class="flex items-center justify-center gap-2 md:gap-3 flex-wrap">
+            <img src="https://raw.githubusercontent.com/internalcontrolengineering/Desarrollos/main/LogoCI-G.png" alt="Control Interno" class="h-4 md:h-5 w-auto opacity-50">
+            <div class="w-px h-5 md:h-6 bg-gray-400"></div>
+            <div class="flex flex-col leading-tight">
+                <span class="text-[0.55rem] md:text-xs text-gray-700 font-medium">Control Interno</span>
+                <span class="text-[0.45rem] md:text-[0.55rem] text-gray-500 font-medium">Ingeniería de Control</span>
+            </div>
+            <div class="w-px h-5 md:h-6 bg-gray-400"></div>
+            <div class="flex flex-col leading-tight">
+                <span class="text-[0.55rem] md:text-xs text-gray-700 font-medium">BIA - Levantamiento de Procesos</span>
+                <span class="text-[0.45rem] md:text-[0.55rem] text-gray-500 font-medium">V2.0 | Sincronización Automática | Mayo 2026</span>
+            </div>
+        </div>
+    </footer>
 </div>
 
-<!-- MODAL PARA EDICIÓN DE TEXTO -->
-<div id="editModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="text-lg font-semibold text-gray-800" id="modalTitle">Editar contenido</h3>
-            <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-        </div>
-        <div class="modal-body">
-            <textarea id="modalTextarea" class="modal-textarea" placeholder="Escriba aquí el contenido. Use Enter para saltos de línea. Presione Ctrl+Enter para guardar."></textarea>
-            <p class="text-xs text-gray-400 mt-2">💡 Consejo: Use <kbd class="px-1 py-0.5 bg-gray-100 rounded">Ctrl</kbd> + <kbd class="px-1 py-0.5 bg-gray-100 rounded">Enter</kbd> para guardar rápidamente</p>
-        </div>
-        <div class="modal-footer">
-            <button id="cancelModalBtn" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-            <button id="saveModalBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Guardar</button>
-        </div>
-    </div>
-</div>
+<div id="sessionTimer" class="timer-container"></div>
 
 <script>
     // ==========================================
-    // CONFIGURACIÓN
+    // CONFIGURACIÓN DE SUPABASE
+    // ==========================================
+    const SUPABASE_URL = "https://fnwfdlqdrkgydkqxfquz.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZud2ZkbHFkcmtneWRrcXhmcXV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMzQ2MTQsImV4cCI6MjA5NTkxMDYxNH0.9apVrfEJfqzuKKBTfaLAsG-I2wOGZer9RC-S5YcFmMc";
+
+    let supabaseClient = null;
+    let syncInProgress = false;
+    let subscription = null;
+    let isRealtimeEnabled = false;
+
+    // ==========================================
+    // FUNCIONES DE NOTIFICACIÓN
+    // ==========================================
+    function mostrarNotificacion(mensaje, tipo = "info") {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${tipo}`;
+        notification.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i class="fas ${tipo === 'success' ? 'fa-check-circle' : tipo === 'error' ? 'fa-exclamation-circle' : tipo === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+                <span>${mensaje}</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+
+    function actualizarIndicadorSync(estado, mensaje = null) {
+        const indicator = document.getElementById('syncIndicator');
+        if (!indicator) return;
+        
+        const icon = indicator.querySelector('i');
+        const text = indicator.querySelector('span');
+        
+        switch(estado) {
+            case 'syncing':
+                indicator.className = 'sync-indicator syncing';
+                icon.className = 'fas fa-spinner fa-pulse';
+                text.textContent = mensaje || 'Sincronizando...';
+                break;
+            case 'synced':
+                indicator.className = 'sync-indicator synced';
+                icon.className = 'fas fa-check-circle';
+                text.textContent = mensaje || 'Sincronizado';
+                setTimeout(() => {
+                    if (document.getElementById('syncIndicator') && !syncInProgress) {
+                        icon.className = 'fas fa-cloud-upload-alt';
+                        text.textContent = 'Sincronizado';
+                    }
+                }, 2000);
+                break;
+            case 'error':
+                indicator.className = 'sync-indicator error';
+                icon.className = 'fas fa-exclamation-circle';
+                text.textContent = mensaje || 'Error de sincronización';
+                break;
+        }
+    }
+
+    // ==========================================
+    // INICIALIZAR SUPABASE
+    // ==========================================
+    function initSupabase() {
+        try {
+            if (typeof supabaseJs !== 'undefined') {
+                supabaseClient = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log("✅ Supabase inicializado correctamente");
+                return true;
+            } else if (typeof supabase !== 'undefined') {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log("✅ Supabase inicializado correctamente");
+                return true;
+            } else {
+                console.error("❌ Supabase no está disponible");
+                mostrarNotificacion("No se pudo conectar con la nube. Los datos se guardarán localmente.", "warning");
+                return false;
+            }
+        } catch (error) {
+            console.error("❌ Error al inicializar Supabase:", error);
+            return false;
+        }
+    }
+
+    // ==========================================
+    // FUNCIONES DE SINCRONIZACIÓN CON SUPABASE
+    // ==========================================
+
+async function subirRegistroASupabase(registro) {
+    if (!supabaseClient) return false;
+    try {
+        // Objeto base sanitizado con los nombres exactos que espera Supabase
+        // Cambia la columna izquierda si en Supabase está en minúsculas o con guion bajo
+        const datosAEnviar = {
+            id: parseInt(registro.id),
+            unidadNegocio: registro.unidadNegocio || '',      // Si en la nube es unidad_negocio, cámbialo aquí
+            area: registro.area || '',
+            tipoMacro: registro.tipoMacro || '',              // Si en la nube es tipo_macro, cámbialo aquí
+            macroproceso: registro.macroproceso || '',
+            proceso: registro.proceso || '',
+            procedimiento: registro.procedimiento || '',
+            documentosSoporte: registro.documentosSoporte || '',
+            input: registro.input || '',
+            output: registro.output || '',
+            riesgos: registro.riesgos || '',
+            partesRelacionadas: registro.partesRelacionadas || '',
+            prioridad: registro.prioridad || '',
+            comentarios: registro.comentarios || ''
+        };
+
+        const { error } = await supabaseClient
+            .from('procesos')
+            .upsert(datosAEnviar, { onConflict: 'id' });
+        
+        if (error) {
+            // Imprime el error detallado de la base de datos para saber qué columna falla
+            console.error(`❌ Detalle del error 400 en ID ${registro.id}:`, error.message, error.details, error.hint);
+            throw error;
+        }
+        return true;
+    } catch (error) {
+        console.error(`❌ Error al subir registro ${registro.id}:`, error);
+        return false;
+    }
+}
+
+    async function subirTodosASupabase() {
+        if (!supabaseClient || procesosData.length === 0) return false;
+        syncInProgress = true;
+        actualizarIndicadorSync('syncing', 'Subiendo datos...');
+        
+        try {
+            let successCount = 0;
+            for (const registro of procesosData) {
+                const success = await subirRegistroASupabase(registro);
+                if (success) successCount++;
+            }
+            
+            console.log(`✅ ${successCount}/${procesosData.length} registros sincronizados`);
+            actualizarIndicadorSync('synced', `${successCount} registros sincronizados`);
+            return true;
+        } catch (error) {
+            console.error("❌ Error en sincronización masiva:", error);
+            actualizarIndicadorSync('error', 'Error al sincronizar');
+            return false;
+        } finally {
+            syncInProgress = false;
+        }
+    }
+
+    async function eliminarRegistroDeSupabase(id) {
+        if (!supabaseClient) return false;
+        try {
+            const { error } = await supabaseClient
+                .from('procesos')
+                .delete()
+                .eq('id', id);
+            
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error(`❌ Error al eliminar registro ${id}:`, error);
+            return false;
+        }
+    }
+
+    async function actualizarRegistroEnSupabase(id, cambios) {
+        if (!supabaseClient) return false;
+        try {
+            const { error } = await supabaseClient
+                .from('procesos')
+                .update({
+                    ...cambios,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+            
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error(`❌ Error al actualizar registro ${id}:`, error);
+            return false;
+        }
+    }
+
+    async function cargarDesdeSupabase() {
+        if (!supabaseClient) return false;
+        actualizarIndicadorSync('syncing', 'Cargando datos...');
+        
+        try {
+            const { data, error } = await supabaseClient
+                .from('procesos')
+                .select('*')
+                .order('id', { ascending: true });
+            
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                procesosData = data;
+                const maxId = Math.max(...data.map(p => p.id), 0);
+                nextId = maxId + 1;
+                guardarStorage();
+                renderTabla();
+                actualizarTodosLosFiltros();
+                console.log(`✅ Cargados ${data.length} registros desde Supabase`);
+                actualizarIndicadorSync('synced', `${data.length} registros cargados`);
+                mostrarNotificacion(`${data.length} registros cargados desde la nube`, "success");
+                return true;
+            } else {
+                console.log("ℹ️ No hay datos en Supabase remotos");
+                actualizarIndicadorSync('synced', 'Sin datos en la nube');
+                return false;
+            }
+        } catch (error) {
+            console.error("❌ Error al cargar desde Supabase:", error);
+            actualizarIndicadorSync('error', 'Error de conexión');
+            return false;
+        }
+    }
+
+    function suscribirCambiosEnTiempoReal() {
+        if (!supabaseClient || isRealtimeEnabled) return;
+        
+        try {
+            if (subscription) {
+                subscription.unsubscribe();
+            }
+            
+            subscription = supabaseClient
+                .channel('procesos_changes')
+                .on('postgres_changes', 
+                    { event: '*', schema: 'public', table: 'procesos' },
+                    async (payload) => {
+                        console.log("📡 Cambio detectado en Supabase:", payload.eventType);
+                        
+                        if (syncInProgress) return;
+                        
+                        const { eventType, new: newRecord, old: oldRecord } = payload;
+                        
+                        switch (eventType) {
+                            case 'INSERT':
+                                const existe = procesosData.some(p => p.id === newRecord.id);
+                                if (!existe) {
+                                    procesosData.push(newRecord);
+                                    if (newRecord.id >= nextId) nextId = newRecord.id + 1;
+                                    guardarStorage();
+                                    renderTabla();
+                                    actualizarTodosLosFiltros();
+                                    mostrarNotificacion(`Nuevo registro agregado desde la nube`, "info");
+                                }
+                                break;
+                                
+                            case 'UPDATE':
+                                const index = procesosData.findIndex(p => p.id === newRecord.id);
+                                if (index !== -1) {
+                                    procesosData[index] = newRecord;
+                                    guardarStorage();
+                                    renderTabla();
+                                    actualizarTodosLosFiltros();
+                                    mostrarNotificacion(`Registro actualizado desde la nube`, "info");
+                                }
+                                break;
+                                
+                            case 'DELETE':
+                                const deleteIndex = procesosData.findIndex(p => p.id === oldRecord.id);
+                                if (deleteIndex !== -1) {
+                                    procesosData.splice(deleteIndex, 1);
+                                    guardarStorage();
+                                    renderTabla();
+                                    actualizarTodosLosFiltros();
+                                    mostrarNotificacion(`Registro eliminado desde la nube`, "info");
+                                }
+                                break;
+                        }
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        isRealtimeEnabled = true;
+                        console.log("✅ Suscripción a cambios en tiempo real activada");
+                    }
+                });
+        } catch (error) {
+            console.error("❌ Error al suscribir a cambios:", error);
+        }
+    }
+
+    // ==========================================
+    // LOGIN CARRUSEL
+    // ==========================================
+    let rotation = 0;
+    let selectedCard = null;
+    const cards = [
+        { id: 'processOwner', title: 'Process Owner', icon: 'fas fa-clipboard-list', description: 'Gestión y visualización de procesos', color: 'white' },
+        { id: 'manager', title: 'Manager', icon: 'fas fa-user-tie', description: 'Control total del sistema', color: 'white' }
+    ];
+    
+    function renderCarouselLogin() { 
+        const carousel = document.getElementById('carousel3d'); 
+        if(!carousel) return; 
+        carousel.innerHTML = ''; 
+        cards.forEach((card, idx) => { 
+            const angle = idx * 180; 
+            const div = document.createElement('div'); 
+            div.className = `carousel-card ${selectedCard && selectedCard.id === card.id ? 'selected' : ''}`; 
+            div.style.cssText = `position:absolute; width:100%; height:100%; border-radius:20px; transform:rotateY(${angle}deg) translateZ(200px); background:${card.color}; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; cursor:pointer; padding:30px;`; 
+            div.innerHTML = `<i class="${card.icon} text-6xl mb-4" style="color:#555555"></i><h3 class="text-3xl font-bold mb-3" style="color:#2d2d2d">${card.title}</h3><p class="text-sm" style="color:#666666">${card.description}</p>`; 
+            div.onclick = () => selectCardLogin(card); 
+            carousel.appendChild(div); 
+        }); 
+        carousel.style.transform = `rotateY(${rotation}deg)`; 
+    }
+    
+    function selectCardLogin(card) { 
+        selectedCard = card; 
+        renderCarouselLogin(); 
+        if(card.id === 'processOwner') { 
+            iniciarSesion('processOwner'); 
+        } else { 
+            const modal = document.getElementById('passwordModal'); 
+            const passInput = document.getElementById('managerPassword'); 
+            const errorDiv = document.getElementById('passwordError'); 
+            passInput.value = ''; 
+            errorDiv.classList.add('hidden'); 
+            modal.classList.remove('hidden'); 
+            const checkPass = () => { 
+                if(passInput.value === 'ControlInterno2026') { 
+                    modal.classList.add('hidden'); 
+                    iniciarSesion('manager'); 
+                } else { 
+                    errorDiv.classList.remove('hidden'); 
+                } 
+            }; 
+            document.getElementById('confirmPassword').onclick = checkPass; 
+            document.getElementById('cancelPassword').onclick = () => modal.classList.add('hidden'); 
+            passInput.onkeypress = (e) => { if(e.key === 'Enter') checkPass(); }; 
+        } 
+    }
+    
+    // ==========================================
+    // CONFIGURACIÓN DE TIEMPO DE SESIÓN
+    // ==========================================
+    const SESSION_MINUTES = 10;
+    const SESSION_DURATION = SESSION_MINUTES * 60 * 1000;
+    
+    let sessionTimeout = null;
+    let currentUserRole = null;
+    let lastActivityTime = Date.now();
+    let timerInterval = null;
+    let isClosingSession = false;
+    
+    function resetSessionTimer() {
+        if (isClosingSession) return;
+        lastActivityTime = Date.now();
+        if (timerInterval) clearInterval(timerInterval);
+        startTimerDisplay();
+        if (sessionTimeout) clearTimeout(sessionTimeout);
+        sessionTimeout = setTimeout(cerrarSesionPorInactividad, SESSION_DURATION);
+    }
+    
+    function startTimerDisplay() {
+        updateTimerDisplay();
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimerDisplay, 1000);
+    }
+    
+    function updateTimerDisplay() {
+        const elapsed = Date.now() - lastActivityTime;
+        const remaining = Math.max(0, SESSION_DURATION - elapsed);
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        const timerDiv = document.getElementById('sessionTimer');
+        if (timerDiv) {
+            timerDiv.innerHTML = `<i class="fas fa-clock mr-1"></i> ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} (${SESSION_MINUTES} min)`;
+            if (remaining === 0) {
+                timerDiv.classList.add('timer-expired');
+                timerDiv.classList.remove('timer-warning');
+                timerDiv.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> Sesión expirada`;
+                if (timerInterval) clearInterval(timerInterval);
+            } else if (remaining < 60000) {
+                timerDiv.classList.add('timer-warning');
+                timerDiv.classList.remove('timer-expired');
+            } else {
+                timerDiv.classList.remove('timer-warning');
+                timerDiv.classList.remove('timer-expired');
+            }
+        }
+    }
+    
+    function cerrarSesionPorInactividad() {
+        if (isClosingSession) return;
+        isClosingSession = true;
+        
+        const elapsed = Date.now() - lastActivityTime;
+        if (elapsed < SESSION_DURATION) {
+            isClosingSession = false;
+            resetSessionTimer();
+            return;
+        }
+        
+        if (currentUserRole) {
+            currentUserRole = null;
+            localStorage.removeItem("bia_session_role");
+            localStorage.removeItem("bia_session_time");
+            if (sessionTimeout) clearTimeout(sessionTimeout);
+            if (timerInterval) clearInterval(timerInterval);
+            
+            const events = ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+            events.forEach(event => {
+                document.removeEventListener(event, resetSessionTimer);
+            });
+            
+            document.getElementById('mainApp').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'flex';
+            
+            rotation = 0;
+            selectedCard = cards[0];
+            renderCarouselLogin();
+        }
+        isClosingSession = false;
+    }
+    
+    function guardarSesion() {
+        if (currentUserRole) {
+            localStorage.setItem("bia_session_role", currentUserRole);
+            localStorage.setItem("bia_session_time", Date.now().toString());
+        }
+    }
+    
+    function cargarSesion() {
+        const savedRole = localStorage.getItem("bia_session_role");
+        const savedTime = localStorage.getItem("bia_session_time");
+        if (savedRole && savedTime) {
+            const elapsed = Date.now() - parseInt(savedTime);
+            if (elapsed < SESSION_DURATION) {
+                currentUserRole = savedRole;
+                return true;
+            } else {
+                localStorage.removeItem("bia_session_role");
+                localStorage.removeItem("bia_session_time");
+            }
+        }
+        return false;
+    }
+    
+    // ==========================================
+    // CONFIGURACIÓN DE LA APLICACIÓN
     // ==========================================
     const COLUMNAS = [
         { field: "unidadNegocio", label: "Unidad Negocio", expected: "Unidad Negocio", tipo: "select", opciones: ["COMA", "SurtiCOMA", "Súper Willys"] },
-        { field: "area", label: "Área", expected: "Área", tipo: "select", opciones: ["Comercial","Construcción","Contraloría","Control Vehicular","Tecnologías de la Información","Expansión","Finanzas","Jurídico","Logística","Operaciones","Suministros","Recursos Humanos","Seguridad Patrimonial","Auditoría Interna"] },
+        { field: "area", label: "Área", expected: "Área", tipo: "select", opciones: ["Auditoría Interna","Comercial","Construcción","Contraloría","Control Vehicular","Expansión","Finanzas","Jurídico","Logística","Operaciones","Recursos Humanos","Seguridad Patrimonial","Suministros","Tecnologías de la Información","Ventas"] },
         { field: "tipoMacro", label: "Tipo Macro", expected: "Tipo Macro", tipo: "select", opciones: ["Primario", "Soporte"] },
         { field: "macroproceso", label: "Macroproceso", expected: "Macroproceso", tipo: "textarea" },
         { field: "proceso", label: "Proceso", expected: "Proceso", tipo: "textarea" },
@@ -225,435 +1012,340 @@
         { field: "output", label: "Output", expected: "Output", tipo: "textarea" },
         { field: "riesgos", label: "Riesgos Inherentes", expected: "Riesgos Inherentes", tipo: "textarea" },
         { field: "partesRelacionadas", label: "Partes Relacionadas", expected: "Partes Relacionadas", tipo: "textarea" },
-        { field: "prioridad", label: "Prioridad", expected: "Prioridad", tipo: "select", opciones: ["Crítica", "Alta", "Media", "Baja"] }
+        { field: "prioridad", label: "Prioridad", expected: "Prioridad", tipo: "select", opciones: ["Crítica", "Alta", "Media", "Baja"] },
+        { field: "comentarios", label: "Comentarios", expected: "Comentarios", tipo: "textarea" }
     ];
 
-    let procesosData = [];
-    let nextId = 1;
-    let filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" };
-    let filtrosColumna = {};
-    let columnWidth = 160;
+    let procesosData = [], nextId = 1, filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" }, filtrosColumna = {}, columnWidth = 160;
+
+    function ordenarDatos(data) { return [...data].sort((a,b)=>{ const uA=(a.unidadNegocio||"").toLowerCase(), uB=(b.unidadNegocio||"").toLowerCase(); if(uA!==uB) return uA.localeCompare(uB); const aA=(a.area||"").toLowerCase(), aB=(b.area||"").toLowerCase(); if(aA!==aB) return aA.localeCompare(aB); const tA=(a.tipoMacro||"").toLowerCase(), tB=(b.tipoMacro||"").toLowerCase(); if(tA!==tB) return tA.localeCompare(tB); const mA=(a.macroproceso||"").toLowerCase(), mB=(b.macroproceso||"").toLowerCase(); if(mA!==mB) return mA.localeCompare(mB); const pA=(a.proceso||"").toLowerCase(), pB=(b.proceso||"").toLowerCase(); if(pA!==pB) return pA.localeCompare(pB); const prA=(a.procedimiento||"").toLowerCase(), prB=(b.procedimiento||"").toLowerCase(); return prA.localeCompare(prB); }); }
+
+    function guardarStorage() { localStorage.setItem("mapaProcesosDataFinalV17", JSON.stringify(procesosData)); localStorage.setItem("nextIdFinalV17", nextId); localStorage.setItem("columnWidthFinalV17", columnWidth); }
+    function cargarStorage() { const data = localStorage.getItem("mapaProcesosDataFinalV17"); if(data){ procesosData=JSON.parse(data); nextId=parseInt(localStorage.getItem("nextIdFinalV17"))||(procesosData.length?Math.max(...procesosData.map(p=>p.id))+1:1); } else { procesosData=[]; nextId=1; } const savedWidth=localStorage.getItem("columnWidthFinalV17"); if(savedWidth) columnWidth=parseInt(savedWidth); }
+    function aplicarAnchoTodasColumnas(nuevoAncho) { columnWidth=nuevoAncho; const ths=document.querySelectorAll('#tableHead th'); for(let i=0;i<ths.length;i++){ ths[i].style.width=columnWidth+'px'; ths[i].style.minWidth=columnWidth+'px'; } const filas=document.querySelectorAll('#tablaBody tr'); for(const fila of filas){ const celdas=fila.querySelectorAll('td'); for(let i=0;i<celdas.length;i++){ celdas[i].style.width=columnWidth+'px'; } } guardarStorage(); }
+    function normalizarTexto(texto) { if(!texto) return ""; return texto.toString().toLowerCase().trim().replace(/[áéíóú]/g, m=>({'á':'a','é':'e','í':'i','ó':'o','ú':'u'}[m])).replace(/\s+/g, ' '); }
+    function validarEncabezados(headers) { const errores=[], mapeo={}; for(let i=0;i<COLUMNAS.length;i++){ const col=COLUMNAS[i]; const expectedNorm=normalizarTexto(col.expected); let encontrado=false; for(let j=0;j<headers.length;j++){ if(normalizarTexto(headers[j])===expectedNorm){ encontrado=true; mapeo[col.field]=j; break; } } if(!encontrado) errores.push(`"${col.expected}"`); } return { esValido: errores.length===0, errores, mapeo }; }
+    function getDataFiltrada() { let data=procesosData.filter(row=>{ if(filtrosRapidos.unidadNegocio&&row.unidadNegocio!==filtrosRapidos.unidadNegocio) return false; if(filtrosRapidos.area&&row.area!==filtrosRapidos.area) return false; if(filtrosRapidos.tipoMacro&&row.tipoMacro!==filtrosRapidos.tipoMacro) return false; if(filtrosRapidos.macroproceso&&row.macroproceso!==filtrosRapidos.macroproceso) return false; if(filtrosRapidos.prioridad&&row.prioridad!==filtrosRapidos.prioridad) return false; for(const [field,valor] of Object.entries(filtrosColumna)){ if(valor&&row[field]!==valor) return false; } return true; }); return ordenarDatos(data); }
+    function actualizarTodosLosFiltros() { const dataFiltrada=getDataFiltrada(); const camposRapidos=[{id:"filtroRapidoUnidad",field:"unidadNegocio",label:"Unidad Negocio"},{id:"filtroRapidoArea",field:"area",label:"Área"},{id:"filtroRapidoTipoMacro",field:"tipoMacro",label:"Tipo Macro"},{id:"filtroRapidoMacro",field:"macroproceso",label:"Macroproceso"},{id:"filtroRapidoPrioridad",field:"prioridad",label:"Prioridad"}]; camposRapidos.forEach(campo=>{ const select=document.getElementById(campo.id); if(!select) return; const valores=new Set(); dataFiltrada.forEach(item=>{ if(item[campo.field]&&item[campo.field].trim()) valores.add(item[campo.field].trim()); }); let options=`<option value="">${campo.label==="Unidad Negocio"?"Todas":campo.label==="Área"?"Todas":campo.label==="Prioridad"?"Todas":"Todos"}</option>`; Array.from(valores).sort().forEach(v=>{ options+=`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; }); select.innerHTML=options; if(filtrosRapidos[campo.field]&&valores.has(filtrosRapidos[campo.field])) select.value=filtrosRapidos[campo.field]; else select.value=""; }); COLUMNAS.forEach(col=>{ const select=document.getElementById(`filtro_${col.field}`); if(!select) return; const valores=new Set(); dataFiltrada.forEach(item=>{ if(item[col.field]&&item[col.field].trim()) valores.add(item[col.field].trim()); }); let options='<option value="">Todos</option>'; Array.from(valores).sort().forEach(v=>{ options+=`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; }); select.innerHTML=options; if(filtrosColumna[col.field]&&valores.has(filtrosColumna[col.field])) select.value=filtrosColumna[col.field]; else select.value=""; }); }
+    function aplicarFiltros() { renderTabla(); actualizarTodosLosFiltros(); }
+    function limpiarTodosFiltros() { filtrosRapidos={ unidadNegocio:"", area:"", tipoMacro:"", macroproceso:"", prioridad:"" }; filtrosColumna={}; document.querySelectorAll('.filtro-rapido, .filtro-columna').forEach(s=>s.value=""); renderTabla(); actualizarTodosLosFiltros(); }
     
-    let modalContext = {
-        isOpen: false,
-        field: null,
-        id: null,
-        currentValue: "",
-        tipo: null,
-        opciones: []
-    };
-
-    // ==========================================
-    // FUNCIÓN DE ORDENAMIENTO
-    // ==========================================
-    function ordenarDatos(data) {
-        return [...data].sort((a, b) => {
-            // 1. Ordenar por Unidad Negocio
-            const unidadA = (a.unidadNegocio || "").toLowerCase();
-            const unidadB = (b.unidadNegocio || "").toLowerCase();
-            if (unidadA !== unidadB) return unidadA.localeCompare(unidadB);
-            
-            // 2. Ordenar por Área
-            const areaA = (a.area || "").toLowerCase();
-            const areaB = (b.area || "").toLowerCase();
-            if (areaA !== areaB) return areaA.localeCompare(areaB);
-            
-            // 3. Ordenar por Tipo Macro
-            const tipoA = (a.tipoMacro || "").toLowerCase();
-            const tipoB = (b.tipoMacro || "").toLowerCase();
-            if (tipoA !== tipoB) return tipoA.localeCompare(tipoB);
-            
-            // 4. Ordenar por Macroproceso
-            const macroA = (a.macroproceso || "").toLowerCase();
-            const macroB = (b.macroproceso || "").toLowerCase();
-            if (macroA !== macroB) return macroA.localeCompare(macroB);
-            
-            // 5. Ordenar por Proceso
-            const procesoA = (a.proceso || "").toLowerCase();
-            const procesoB = (b.proceso || "").toLowerCase();
-            if (procesoA !== procesoB) return procesoA.localeCompare(procesoB);
-            
-            // 6. Ordenar por Procedimiento
-            const procA = (a.procedimiento || "").toLowerCase();
-            const procB = (b.procedimiento || "").toLowerCase();
-            return procA.localeCompare(procB);
-        });
+    function renderHeader() { 
+        const thead = document.getElementById("tableHead"); 
+        let html = '<tr>'; 
+        for(let i = 0; i < COLUMNAS.length; i++){ 
+            const col = COLUMNAS[i]; 
+            html += `<th class="font-extrabold" style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: sticky; top: 0; background-color: #e0e0e0; z-index: 30;">${col.label}<select class="filtro-columna" id="filtro_${col.field}" style="margin-top: 8px;"><option value="">Todos</option></select><div class="resize-handle" data-col="${i}" style="z-index: 40;"></div></th>`; 
+        } 
+        html += `<th class="font-extrabold" style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: sticky; top: 0; background-color: #e0e0e0; z-index: 30;">Acción<div class="resize-handle" data-col="${COLUMNAS.length}" style="z-index: 40;"></div></th>`; 
+        html += '</tr>'; 
+        thead.innerHTML = html; 
+        
+        COLUMNAS.forEach(col => { 
+            const select = document.getElementById(`filtro_${col.field}`); 
+            if(select) select.addEventListener("change", () => { 
+                filtrosColumna[col.field] = select.value; 
+                aplicarFiltros(); 
+            }); 
+        }); 
+        
+        document.querySelectorAll('.resize-handle').forEach(handle => { 
+            handle.addEventListener('mousedown', (e) => { 
+                e.preventDefault(); 
+                const startX = e.clientX; 
+                const startWidth = columnWidth; 
+                const onMouseMove = (moveEvent) => { 
+                    const newWidth = startWidth + (moveEvent.clientX - startX); 
+                    if(newWidth < 100) return; 
+                    if(newWidth > 500) return; 
+                    aplicarAnchoTodasColumnas(newWidth); 
+                }; 
+                const onMouseUp = () => { 
+                    window.removeEventListener('mousemove', onMouseMove); 
+                    window.removeEventListener('mouseup', onMouseUp); 
+                }; 
+                window.addEventListener('mousemove', onMouseMove); 
+                window.addEventListener('mouseup', onMouseUp); 
+            }); 
+        }); 
     }
-
-    function guardarStorage() {
-        localStorage.setItem("mapaProcesosDataFinalV14", JSON.stringify(procesosData));
-        localStorage.setItem("nextIdFinalV14", nextId);
-        localStorage.setItem("columnWidthFinalV14", columnWidth);
-    }
-
-    function cargarStorage() {
-        const data = localStorage.getItem("mapaProcesosDataFinalV14");
-        if (data) {
-            procesosData = JSON.parse(data);
-            nextId = parseInt(localStorage.getItem("nextIdFinalV14")) || (procesosData.length ? Math.max(...procesosData.map(p=>p.id)) + 1 : 1);
-        } else {
-            procesosData = [];
-            nextId = 1;
-        }
-        const savedWidth = localStorage.getItem("columnWidthFinalV14");
-        if (savedWidth) columnWidth = parseInt(savedWidth);
-        renderTabla();
-    }
-
-    function aplicarAnchoTodasColumnas(nuevoAncho) {
-        columnWidth = nuevoAncho;
-        const ths = document.querySelectorAll('#tableHead th');
-        for (let i = 0; i < ths.length; i++) {
-            ths[i].style.width = columnWidth + 'px';
-            ths[i].style.minWidth = columnWidth + 'px';
-        }
-        const filas = document.querySelectorAll('#tablaBody tr');
-        for (const fila of filas) {
-            const celdas = fila.querySelectorAll('td');
-            for (let i = 0; i < celdas.length; i++) {
-                celdas[i].style.width = columnWidth + 'px';
-            }
-        }
-        guardarStorage();
-    }
-
-    function normalizarTexto(texto) {
-        if (!texto) return "";
-        return texto.toString().toLowerCase().trim().replace(/[áéíóú]/g, function(m) {
-            return { 'á':'a', 'é':'e', 'í':'i', 'ó':'o', 'ú':'u' }[m];
-        }).replace(/\s+/g, ' ');
-    }
-
-    function validarEncabezados(headers) {
-        const errores = [];
-        const mapeo = {};
-        for (let i = 0; i < COLUMNAS.length; i++) {
-            const col = COLUMNAS[i];
-            const expectedNorm = normalizarTexto(col.expected);
-            let encontrado = false;
-            for (let j = 0; j < headers.length; j++) {
-                const headerNorm = normalizarTexto(headers[j]);
-                if (headerNorm === expectedNorm) {
-                    encontrado = true;
-                    mapeo[col.field] = j;
-                    break;
+    
+    async function editarYSincronizar(id, field, newValue) {
+        const index = procesosData.findIndex(p => p.id === id);
+        if (index !== -1) {
+            procesosData[index][field] = newValue;
+            guardarStorage();
+            renderTabla();
+            actualizarTodosLosFiltros();
+            
+            if (supabaseClient) {
+                actualizarIndicadorSync('syncing', 'Sincronizando edición...');
+                const exito = await actualizarRegistroEnSupabase(id, { [field]: newValue });
+                if(exito) {
+                    actualizarIndicadorSync('synced');
+                    mostrarNotificacion("Cambio guardado en la nube", "success");
+                } else {
+                    actualizarIndicadorSync('error', 'Error al sincronizar');
                 }
             }
-            if (!encontrado) errores.push(`"${col.expected}"`);
         }
-        return { esValido: errores.length === 0, errores, mapeo };
     }
-
-    function getDataFiltrada() {
-        let data = procesosData.filter(row => {
-            if (filtrosRapidos.unidadNegocio && row.unidadNegocio !== filtrosRapidos.unidadNegocio) return false;
-            if (filtrosRapidos.area && row.area !== filtrosRapidos.area) return false;
-            if (filtrosRapidos.tipoMacro && row.tipoMacro !== filtrosRapidos.tipoMacro) return false;
-            if (filtrosRapidos.macroproceso && row.macroproceso !== filtrosRapidos.macroproceso) return false;
-            if (filtrosRapidos.prioridad && row.prioridad !== filtrosRapidos.prioridad) return false;
-            for (const [field, valor] of Object.entries(filtrosColumna)) {
-                if (valor && row[field] !== valor) return false;
-            }
-            return true;
-        });
-        
-        // Aplicar ordenamiento automático
-        return ordenarDatos(data);
-    }
-
-    function actualizarTodosLosFiltros() {
-        const dataFiltrada = getDataFiltrada();
-        
-        const camposRapidos = [
-            { id: "filtroRapidoUnidad", field: "unidadNegocio", label: "Unidad Negocio" },
-            { id: "filtroRapidoArea", field: "area", label: "Área" },
-            { id: "filtroRapidoTipoMacro", field: "tipoMacro", label: "Tipo Macro" },
-            { id: "filtroRapidoMacro", field: "macroproceso", label: "Macroproceso" },
-            { id: "filtroRapidoPrioridad", field: "prioridad", label: "Prioridad" }
-        ];
-        
-        camposRapidos.forEach(campo => {
-            const select = document.getElementById(campo.id);
-            if (!select) return;
-            
-            const valores = new Set();
-            dataFiltrada.forEach(item => {
-                if (item[campo.field] && item[campo.field].trim()) {
-                    valores.add(item[campo.field].trim());
-                }
-            });
-            
-            let options = `<option value="">${campo.label === "Unidad Negocio" ? "Todas" : campo.label === "Área" ? "Todas" : campo.label === "Prioridad" ? "Todas" : "Todos"}</option>`;
-            Array.from(valores).sort().forEach(v => {
-                options += `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
-            });
-            select.innerHTML = options;
-            
-            if (filtrosRapidos[campo.field] && valores.has(filtrosRapidos[campo.field])) {
-                select.value = filtrosRapidos[campo.field];
-            } else {
-                select.value = "";
-                filtrosRapidos[campo.field] = "";
-            }
-        });
-        
-        COLUMNAS.forEach(col => {
-            const select = document.getElementById(`filtro_${col.field}`);
-            if (!select) return;
-            
-            const valores = new Set();
-            dataFiltrada.forEach(item => { 
-                if (item[col.field] && item[col.field].trim()) {
-                    valores.add(item[col.field].trim());
-                }
-            });
-            
-            let options = '<option value="">Todos</option>';
-            Array.from(valores).sort().forEach(v => { 
-                options += `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; 
-            });
-            select.innerHTML = options;
-            
-            if (filtrosColumna[col.field] && valores.has(filtrosColumna[col.field])) {
-                select.value = filtrosColumna[col.field];
-            } else {
-                select.value = "";
-                filtrosColumna[col.field] = "";
-            }
-        });
-    }
-
-    function aplicarFiltros() {
-        renderTabla();
-        actualizarTodosLosFiltros();
-    }
-
-    function limpiarTodosFiltros() {
-        filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" };
-        filtrosColumna = {};
-        
-        const camposRapidosIds = ["filtroRapidoUnidad", "filtroRapidoArea", "filtroRapidoTipoMacro", "filtroRapidoMacro", "filtroRapidoPrioridad"];
-        camposRapidosIds.forEach(id => {
-            const select = document.getElementById(id);
-            if (select) select.value = "";
-        });
-        
-        COLUMNAS.forEach(col => {
-            const select = document.getElementById(`filtro_${col.field}`);
-            if (select) select.value = "";
-        });
-        
-        aplicarFiltros();
-    }
-
-    function renderHeader() {
-        const thead = document.getElementById("tableHead");
-        let html = '<tr>';
-        for (let i = 0; i < COLUMNAS.length; i++) {
-            const col = COLUMNAS[i];
-            html += `<th style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: relative;">
-                        ${col.label}
-                        <select class="filtro-columna" data-filtro="${col.field}" id="filtro_${col.field}">
-                            <option value="">Todos</option>
-                        </select>
-                        <div class="resize-handle" data-col="${i}"></div>
-                    </th>`;
-        }
-        html += `<th style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: relative;">Acción<div class="resize-handle" data-col="${COLUMNAS.length}"></div></th>`;
-        html += `<tr>`;
-        thead.innerHTML = html;
-        
-        COLUMNAS.forEach(col => {
-            const select = document.getElementById(`filtro_${col.field}`);
-            if (select) {
-                select.addEventListener("change", () => { 
-                    filtrosColumna[col.field] = select.value;
-                    aplicarFiltros();
-                });
-            }
-        });
-        
-        document.querySelectorAll('.resize-handle').forEach(handle => {
-            handle.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                const startX = e.clientX;
-                const startWidth = columnWidth;
-                const onMouseMove = (moveEvent) => {
-                    const deltaX = moveEvent.clientX - startX;
-                    let newWidth = startWidth + deltaX;
-                    if (newWidth < 100) newWidth = 100;
-                    if (newWidth > 500) newWidth = 500;
-                    aplicarAnchoTodasColumnas(newWidth);
-                };
-                const onMouseUp = () => {
-                    window.removeEventListener('mousemove', onMouseMove);
-                    window.removeEventListener('mouseup', onMouseUp);
-                };
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseup', onMouseUp);
-            });
-        });
-    }
-
-    function abrirModalEdicion(field, id, tipo, opciones, currentValue, fieldLabel) {
-        modalContext.field = field;
-        modalContext.id = id;
-        modalContext.currentValue = currentValue;
-        modalContext.tipo = tipo;
-        modalContext.opciones = opciones;
-        
+    
+    function abrirModalEdicion(field, id, currentValue, fieldLabel) {
         const modal = document.getElementById("editModal");
         const modalTitle = document.getElementById("modalTitle");
         const textarea = document.getElementById("modalTextarea");
-        
         modalTitle.textContent = `Editando: ${fieldLabel}`;
         textarea.value = currentValue;
-        
         modal.classList.remove("hidden");
-        
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-    }
-    
-    function cerrarModal() {
-        document.getElementById("editModal").classList.add("hidden");
-        modalContext.isOpen = false;
-    }
-    
-    function guardarModal() {
-        const newValue = document.getElementById("modalTextarea").value;
-        const index = procesosData.findIndex(p => p.id === modalContext.id);
-        if (index !== -1) {
-            procesosData[index][modalContext.field] = newValue;
-            guardarStorage();
-            aplicarFiltros();
-        }
-        cerrarModal();
-    }
-
-    function renderTabla() {
-        const dataFiltrada = getDataFiltrada();
-        const tbody = document.getElementById("tablaBody");
         
-        if (dataFiltrada.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="13" class="text-center py-10 text-gray-400">📋 No hay procesos registrados con los filtros seleccionados.纭`;
-            document.getElementById("contadorRegistros").innerText = "0 registros";
-            return;
-        }
-
-        let html = "";
-        for (const item of dataFiltrada) {
-            html += `<tr data-id="${item.id}">`;
-            for (const col of COLUMNAS) {
-                let valor = item[col.field] || '';
-                let display = valor;
-                if (col.field === 'prioridad' && valor) {
-                    const badgeClass = { 'Crítica':'bg-gray-900 text-white', 'Alta':'bg-red-100 text-red-800', 'Media':'bg-yellow-100 text-yellow-800', 'Baja':'bg-green-100 text-green-800' }[valor] || '';
-                    display = `<span class="badge-prioridad ${badgeClass}">${escapeHtml(valor)}</span>`;
-                } else if (col.tipo === 'textarea') {
-                    display = escapeHtml(valor).replace(/\n/g, '<br>');
-                } else {
-                    display = escapeHtml(valor);
-                }
-                html += `<td style="width: ${columnWidth}px; min-width: ${columnWidth}px;" class="editable-cell" data-field="${col.field}" data-id="${item.id}" data-tipo="${col.tipo}" data-opciones='${JSON.stringify(col.opciones || [])}' data-label="${col.label}">${display || '—'}</td>`;
-            }
-            html += `<td style="width: ${columnWidth}px; min-width: ${columnWidth}px;" class="text-center"><button onclick="eliminarFila(${item.id})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button></td>`;
-            html += `</tr>`;
-        }
-        tbody.innerHTML = html;
-        document.getElementById("contadorRegistros").innerText = `${dataFiltrada.length} registros (total: ${procesosData.length})`;
-
-        document.querySelectorAll('.editable-cell').forEach(cell => {
-            cell.addEventListener('dblclick', (e) => {
-                const field = cell.getAttribute('data-field');
-                const id = parseInt(cell.getAttribute('data-id'));
-                const tipo = cell.getAttribute('data-tipo');
-                const opciones = JSON.parse(cell.getAttribute('data-opciones') || '[]');
-                const label = cell.getAttribute('data-label') || field;
-                let currentValue = cell.innerText === '—' ? '' : cell.innerText;
-                
-                if (tipo === 'select') {
-                    editarCeldaInline(cell, field, id, tipo, opciones, currentValue);
-                } else {
-                    abrirModalEdicion(field, id, tipo, opciones, currentValue, label);
-                }
-            });
-        });
-    }
-
-    function editarCeldaInline(cell, field, id, tipo, opciones, currentValue) {
-        if (cell.querySelector('input, select, textarea')) return;
-        let input = document.createElement('select');
-        input.innerHTML = '<option value="">Seleccionar...</option>';
-        opciones.forEach(opt => { input.innerHTML += `<option value="${opt}" ${currentValue === opt ? 'selected' : ''}>${opt}</option>`; });
-        input.className = "editable-select";
-        
-        cell.innerHTML = '';
-        cell.appendChild(input);
-        input.focus();
-
-        const guardar = () => {
-            let newValue = input.value;
-            const index = procesosData.findIndex(p => p.id === id);
-            if (index !== -1) { procesosData[index][field] = newValue; guardarStorage(); }
-            aplicarFiltros();
+        const guardarModal = async () => {
+            const newValue = document.getElementById("modalTextarea").value;
+            modal.classList.add("hidden");
+            await editarYSincronizar(id, field, newValue);
         };
-        input.addEventListener('change', guardar);
+        
+        const cerrarModal = () => {
+            modal.classList.add("hidden");
+        };
+        
+        document.getElementById("closeModalBtn").onclick = cerrarModal;
+        document.getElementById("cancelModalBtn").onclick = cerrarModal;
+        document.getElementById("saveModalBtn").onclick = guardarModal;
+        
+        textarea.onkeydown = (e) => {
+            if (e.key === "Enter" && e.ctrlKey) {
+                e.preventDefault();
+                guardarModal();
+            }
+        };
+        
+        modal.onclick = (e) => {
+            if (e.target === modal) cerrarModal();
+        };
     }
-
-    function agregarFila() {
-        const nueva = { id: nextId++ };
-        COLUMNAS.forEach(col => { nueva[col.field] = ''; });
-        procesosData.push(nueva);
-        guardarStorage();
-        aplicarFiltros();
+    
+    function renderTabla() { 
+        const dataFiltrada = getDataFiltrada(); 
+        const tbody = document.getElementById("tablaBody"); 
+        if (dataFiltrada.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">📋 No hay procesos registrados con los filtros seleccionados.</td></tr>'; 
+            document.getElementById("contadorRegistros").innerText = "0 registros"; 
+            return; 
+        } 
+        let html = ""; 
+        for (const item of dataFiltrada) { 
+            html += `<tr data-id="${item.id}">`; 
+            for (const col of COLUMNAS) { 
+                let valor = item[col.field] || ''; 
+                let display = valor; 
+                if (col.field === 'prioridad' && valor) { 
+                    const badgeClass = { 'Crítica': 'bg-gray-900 text-white', 'Alta': 'bg-red-100 text-red-800', 'Media': 'bg-yellow-100 text-yellow-800', 'Baja': 'bg-green-100 text-green-800' }[valor] || ''; 
+                    display = `<span class="badge-prioridad ${badgeClass}">${escapeHtml(valor)}</span>`; 
+                } else if (col.tipo === 'textarea') { 
+                    display = escapeHtml(valor).replace(/\n/g, '<br>'); 
+                } else { 
+                    display = escapeHtml(valor); 
+                } 
+                html += `<td style="width:${columnWidth}px;min-width:${columnWidth}px;" class="editable-cell" data-field="${col.field}" data-id="${item.id}" data-tipo="${col.tipo}" data-opciones='${JSON.stringify(col.opciones || [])}' data-label="${col.label}">${display || '—'}</td>`; 
+            } 
+            html += `<td style="width:${columnWidth}px;min-width:${columnWidth}px;" class="text-center"><button onclick="eliminarFila(${item.id})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button></td>`; 
+            html += `</tr>`; 
+        } 
+        tbody.innerHTML = html; 
+        document.getElementById("contadorRegistros").innerText = `${dataFiltrada.length} registros (total: ${procesosData.length})`; 
+        
+        document.querySelectorAll('.editable-cell').forEach(cell => { 
+            cell.addEventListener('dblclick', (e) => { 
+                const field = cell.getAttribute('data-field'); 
+                const id = parseInt(cell.getAttribute('data-id')); 
+                const tipo = cell.getAttribute('data-tipo'); 
+                const opciones = JSON.parse(cell.getAttribute('data-opciones') || '[]'); 
+                const label = cell.getAttribute('data-label') || field; 
+                let currentValue = cell.innerText === '—' ? '' : cell.innerText; 
+                if (tipo === 'select') { 
+                    if (cell.querySelector('select')) return; 
+                    const select = document.createElement('select'); 
+                    select.innerHTML = '<option value="">Seleccionar...</option>'; 
+                    opciones.forEach(opt => { 
+                        select.innerHTML += `<option value="${opt}" ${currentValue === opt ? 'selected' : ''}>${opt}</option>`; 
+                    }); 
+                    select.className = "w-full border rounded px-1 py-1"; 
+                    cell.innerHTML = ''; 
+                    cell.appendChild(select); 
+                    select.focus(); 
+                    select.addEventListener('change', async () => { 
+                        await editarYSincronizar(id, field, select.value); 
+                    }); 
+                } else { 
+                    abrirModalEdicion(field, id, currentValue, label); 
+                } 
+            }); 
+        }); 
     }
-
-    window.eliminarFila = (id) => {
-        if (confirm("¿Eliminar esta fila?")) {
-            procesosData = procesosData.filter(p => p.id !== id);
-            if (!procesosData.length) nextId = 1;
-            guardarStorage();
-            aplicarFiltros();
+    
+    async function agregarFila() { 
+        const nueva = { id: nextId++ }; 
+        COLUMNAS.forEach(col => { nueva[col.field] = ''; }); 
+        procesosData.push(nueva); 
+        guardarStorage(); 
+        renderTabla(); 
+        actualizarTodosLosFiltros(); 
+        
+        if (supabaseClient) {
+            actualizarIndicadorSync('syncing', 'Sincronizando nueva fila...');
+            const exito = await subirRegistroASupabase(nueva);
+            if(exito) {
+                actualizarIndicadorSync('synced');
+                mostrarNotificacion("Nuevo registro agregado y sincronizado", "success");
+            } else {
+                actualizarIndicadorSync('error', 'Error al sincronizar');
+            }
         }
+    }
+    
+    window.eliminarFila = async (id) => { 
+        if (confirm("¿Eliminar esta fila?")) { 
+            procesosData = procesosData.filter(p => p.id !== id); 
+            if (!procesosData.length) nextId = 1; 
+            guardarStorage(); 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+            
+            if (supabaseClient) {
+                actualizarIndicadorSync('syncing', 'Sincronizando eliminación...');
+                const exito = await eliminarRegistroDeSupabase(id);
+                if(exito) {
+                    actualizarIndicadorSync('synced');
+                    mostrarNotificacion("Registro eliminado de la nube", "success");
+                } else {
+                    actualizarIndicadorSync('error', 'Error al eliminar de la nube');
+                }
+            }
+        } 
     };
-
-    function limpiarTodo() {
-        if (confirm("⚠️ ¿Eliminar TODOS los registros?")) {
-            procesosData = []; nextId = 1; filtrosRapidos = {}; filtrosColumna = {};
-            guardarStorage();
-            renderHeader();
-            aplicarFiltros();
-        }
+    
+    async function limpiarTodo() { 
+        if (currentUserRole === 'processOwner') { 
+            alert("⚠️ Process Owner no tiene permisos para limpiar todos los registros"); 
+            return; 
+        } 
+        if (confirm("⚠️ ¿Eliminar TODOS los registros? Esto también los eliminará de la nube de forma permanente.")) { 
+            procesosData = []; 
+            nextId = 1; 
+            filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" }; 
+            filtrosColumna = {}; 
+            guardarStorage(); 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+            
+            if (supabaseClient) {
+                actualizarIndicadorSync('syncing', 'Limpiando nube...');
+                try {
+                    const { error } = await supabaseClient.from('procesos').delete().neq('id', 0);
+                    if (error) throw error;
+                    actualizarIndicadorSync('synced');
+                    mostrarNotificacion("Todos los registros eliminados de la nube", "success");
+                } catch (error) {
+                    console.error("Error al limpiar Supabase:", error);
+                    actualizarIndicadorSync('error', 'Error al limpiar nube');
+                }
+            }
+        } 
     }
-
-    function exportarExcel() {
+    
+    async function exportarExcel() {
         if (!procesosData.length) { alert("No hay datos para exportar"); return; }
+        
         const headers = COLUMNAS.map(c => c.label);
         let filas = [headers];
-        const datosOrdenados = ordenarDatos(procesosData);
-        datosOrdenados.forEach(item => { filas.push(COLUMNAS.map(c => item[c.field] || '')); });
-        let csv = filas.map(fila => fila.map(c => { let cld = String(c); if (cld.includes(',') || cld.includes('"') || cld.includes('\n')) { cld = cld.replace(/"/g, '""'); cld = `"${cld}"`; } return cld; }).join(',')).join('\n');
+        getDataFiltrada().forEach(item => { 
+            filas.push(COLUMNAS.map(c => item[c.field] || '')); 
+        });
+        
+        let csv = filas.map(fila => fila.map(c => { 
+            let cld = String(c); 
+            if (cld.includes(',') || cld.includes('"') || cld.includes('\n')) { 
+                cld = cld.replace(/"/g, '""'); 
+                cld = `"${cld}"`; 
+            } 
+            return cld; 
+        }).join(',')).join('\n');
+        
         const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-        const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "mapa_procesos.csv"; link.click(); URL.revokeObjectURL(link.href);
+        
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: "Mapa_de_procesos.csv",
+                    types: [{ description: 'Archivo CSV', accept: { 'text/csv': ['.csv'] } }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = "Mapa_de_procesos.csv";
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                }
+            }
+        } else {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "Mapa_de_procesos.csv";
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
     }
 
-    function exportarJSON() { 
+    async function exportarJSON() { 
         if (!procesosData.length) { alert("No hay datos para exportar"); return; } 
-        const datosOrdenados = ordenarDatos(procesosData);
-        const data = datosOrdenados.map(({ id, ...rest }) => rest); 
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); 
-        const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "mapa_procesos.json"; link.click(); URL.revokeObjectURL(link.href); 
+        
+        const dataFiltrada = getDataFiltrada();
+        const data = dataFiltrada.map(({ id, ...rest }) => rest);
+        const jsonStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: "Mapa_de_procesos.json",
+                    types: [{ description: 'Archivo JSON', accept: { 'application/json': ['.json'] } }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = "Mapa_de_procesos.json";
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                }
+            }
+        } else {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "Mapa_de_procesos.json";
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
     }
     
     function importarJSON() { 
         const input = document.getElementById("archivoJSONInput"); 
         input.click(); 
-        input.onchange = (e) => { 
+        input.onchange = async (e) => { 
             const file = e.target.files[0]; 
             if (!file) return; 
             const reader = new FileReader(); 
-            reader.onload = (ev) => { 
+            reader.onload = async (ev) => { 
                 try { 
                     const imported = JSON.parse(ev.target.result); 
                     if (!Array.isArray(imported)) throw new Error("Debe ser un arreglo"); 
@@ -666,9 +1358,14 @@
                         } 
                     } 
                     guardarStorage(); 
-                    aplicarFiltros(); 
+                    renderTabla(); 
+                    actualizarTodosLosFiltros(); 
+                    
+                    if (supabaseClient) {
+                        await subirTodosASupabase();
+                    }
                     alert("Importación completada correctamente"); 
-                } catch(err) { 
+                } catch (err) { 
                     alert("Error en el archivo JSON: " + err.message); 
                 } 
                 input.value = ''; 
@@ -676,201 +1373,285 @@
             reader.readAsText(file, "UTF-8"); 
         }; 
     }
-
-    async function procesarExcelConValidacion(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                let sheet = workbook.Sheets["Mapeo de Procesos"];
-                if (!sheet) sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-                if (!rawData || rawData.length < 2) { reject(new Error("El archivo no contiene datos suficientes")); return; }
-                const headers = rawData[0].map(h => h || "");
-                const validacion = validarEncabezados(headers);
-                if (!validacion.esValido) { reject(new Error(`Encabezados no válidos. Faltan: ${validacion.errores.join(", ")}`)); return; }
-                const mapeo = validacion.mapeo;
-                let agregados = 0, actualizados = 0;
-                const nuevosRegistros = [];
-                for (let i = 1; i < rawData.length; i++) {
-                    const fila = rawData[i];
-                    if (!fila || fila.length === 0) continue;
-                    const unidad = fila[mapeo["unidadNegocio"]] ? String(fila[mapeo["unidadNegocio"]]).trim() : "";
-                    const area = fila[mapeo["area"]] ? String(fila[mapeo["area"]]).trim() : "";
-                    const macro = fila[mapeo["macroproceso"]] ? String(fila[mapeo["macroproceso"]]).trim() : "";
-                    const proceso = fila[mapeo["proceso"]] ? String(fila[mapeo["proceso"]]).trim() : "";
-                    if (!unidad || !area || !macro || !proceso) continue;
-                    const nuevoRegistro = {
-                        unidadNegocio: unidad, area: area, tipoMacro: fila[mapeo["tipoMacro"]] ? String(fila[mapeo["tipoMacro"]]).trim() : "",
-                        macroproceso: macro, proceso: proceso, procedimiento: fila[mapeo["procedimiento"]] ? String(fila[mapeo["procedimiento"]]).trim() : "",
-                        documentosSoporte: fila[mapeo["documentosSoporte"]] ? String(fila[mapeo["documentosSoporte"]]).trim() : "",
-                        input: fila[mapeo["input"]] ? String(fila[mapeo["input"]]).trim() : "",
-                        output: fila[mapeo["output"]] ? String(fila[mapeo["output"]]).trim() : "",
-                        riesgos: fila[mapeo["riesgos"]] ? String(fila[mapeo["riesgos"]]).trim() : "",
-                        partesRelacionadas: fila[mapeo["partesRelacionadas"]] ? String(fila[mapeo["partesRelacionadas"]]).trim() : "",
-                        prioridad: fila[mapeo["prioridad"]] ? String(fila[mapeo["prioridad"]]).trim() : ""
-                    };
-                    const existeIndex = procesosData.findIndex(p => p.unidadNegocio === nuevoRegistro.unidadNegocio && p.area === nuevoRegistro.area && p.macroproceso === nuevoRegistro.macroproceso && p.proceso === nuevoRegistro.proceso);
-                    if (existeIndex !== -1) {
-                        let huboCambios = false;
-                        for (const col of COLUMNAS) {
-                            if (procesosData[existeIndex][col.field] !== nuevoRegistro[col.field]) {
-                                procesosData[existeIndex][col.field] = nuevoRegistro[col.field];
-                                huboCambios = true;
-                            }
-                        }
-                        if (huboCambios) actualizados++;
-                    } else {
-                        nuevoRegistro.id = nextId++;
-                        nuevosRegistros.push(nuevoRegistro);
-                        agregados++;
-                    }
-                }
-                for (const nuevo of nuevosRegistros) procesosData.push(nuevo);
-                guardarStorage();
-                aplicarFiltros();
-                resolve({ agregados, actualizados, totalFilas: rawData.length - 1, totalFinal: procesosData.length });
-            };
-            reader.onerror = () => reject(new Error("Error al leer el archivo"));
-            reader.readAsArrayBuffer(file);
-        });
+    
+    async function procesarExcelConValidacion(file) { 
+        return new Promise((resolve, reject) => { 
+            const reader = new FileReader(); 
+            reader.onload = async function(e) { 
+                const data = new Uint8Array(e.target.result); 
+                const workbook = XLSX.read(data, { type: 'array' }); 
+                let sheet = workbook.Sheets["Mapeo de Procesos"]; 
+                if (!sheet) sheet = workbook.Sheets[workbook.SheetNames[0]]; 
+                const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }); 
+                if (!rawData || rawData.length < 2) { 
+                    reject(new Error("El archivo no contiene datos suficientes")); 
+                    return; 
+                } 
+                const headers = rawData[0].map(h => h || ""); 
+                const validacion = validarEncabezados(headers); 
+                if (!validacion.esValido) { 
+                    reject(new Error(`Encabezados no válidos. Faltan: ${validacion.errores.join(", ")}`)); 
+                    return; 
+                } 
+                const mapeo = validacion.mapeo; 
+                let agregados = 0, actualizados = 0; 
+                const nuevosRegistros = []; 
+                for (let i = 1; i < rawData.length; i++) { 
+                    const fila = rawData[i]; 
+                    if (!fila || fila.length === 0) continue; 
+                    const unidad = fila[mapeo["unidadNegocio"]] ? String(fila[mapeo["unidadNegocio"]]).trim() : ""; 
+                    const area = fila[mapeo["area"]] ? String(fila[mapeo["area"]]).trim() : ""; 
+                    const macro = fila[mapeo["macroproceso"]] ? String(fila[mapeo["macroproceso"]]).trim() : ""; 
+                    const proceso = fila[mapeo["proceso"]] ? String(fila[mapeo["proceso"]]).trim() : ""; 
+                    if (!unidad || !area || !macro || !proceso) continue; 
+                    const nuevoRegistro = { 
+                        unidadNegocio: unidad, area: area, tipoMacro: fila[mapeo["tipoMacro"]] ? String(fila[mapeo["tipoMacro"]]).trim() : "", 
+                        macroproceso: macro, proceso: proceso, procedimiento: fila[mapeo["procedimiento"]] ? String(fila[mapeo["procedimiento"]]).trim() : "", 
+                        documentosSoporte: fila[mapeo["documentosSoporte"]] ? String(fila[mapeo["documentosSoporte"]]).trim() : "", 
+                        input: fila[mapeo["input"]] ? String(fila[mapeo["input"]]).trim() : "", 
+                        output: fila[mapeo["output"]] ? String(fila[mapeo["output"]]).trim() : "", 
+                        riesgos: fila[mapeo["riesgos"]] ? String(fila[mapeo["riesgos"]]).trim() : "", 
+                        partesRelacionadas: fila[mapeo["partesRelacionadas"]] ? String(fila[mapeo["partesRelacionadas"]]).trim() : "", 
+                        prioridad: fila[mapeo["prioridad"]] ? String(fila[mapeo["prioridad"]]).trim() : "", 
+                        comentarios: fila[mapeo["comentarios"]] ? String(fila[mapeo["comentarios"]]).trim() : "" 
+                    }; 
+                    const existeIndex = procesosData.findIndex(p => p.unidadNegocio === nuevoRegistro.unidadNegocio && p.area === nuevoRegistro.area && p.macroproceso === nuevoRegistro.macroproceso && p.proceso === nuevoRegistro.proceso); 
+                    if (existeIndex !== -1) { 
+                        let huboCambios = false; 
+                        for (const col of COLUMNAS) { 
+                            if (procesosData[existeIndex][col.field] !== nuevoRegistro[col.field]) { 
+                                procesosData[existeIndex][col.field] = nuevoRegistro[col.field]; 
+                                huboCambios = true; 
+                            } 
+                        } 
+                        if (huboCambios) actualizados++; 
+                    } else { 
+                        nuevoRegistro.id = nextId++; 
+                        nuevosRegistros.push(nuevoRegistro); 
+                        agregados++; 
+                    } 
+                } 
+                for (const nuevo of nuevosRegistros) procesosData.push(nuevo); 
+                guardarStorage(); 
+                renderTabla(); 
+                actualizarTodosLosFiltros(); 
+                
+                if (supabaseClient && (agregados > 0 || actualizados > 0)) {
+                    await subirTodosASupabase();
+                } 
+                resolve({ agregados, actualizados, totalFilas: rawData.length - 1, totalFinal: procesosData.length }); 
+            }; 
+            reader.onerror = () => reject(new Error("Error al leer el archivo")); 
+            reader.readAsArrayBuffer(file); 
+        }); 
     }
-
-    function initBatchUpload() {
-        const dropzone = document.getElementById("dropzone");
-        const fileInput = document.getElementById("excelInput");
-        const batchResult = document.getElementById("batchResult");
-        const validationResult = document.getElementById("validationResult");
-        
-        dropzone.addEventListener("click", () => fileInput.click());
-        dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag-over"); });
-        dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
+    
+    function initBatchUpload() { 
+        const dropzone = document.getElementById("dropzone"); 
+        const fileInput = document.getElementById("excelInput"); 
+        const batchResult = document.getElementById("batchResult"); 
+        const validationResult = document.getElementById("validationResult"); 
+        dropzone.addEventListener("click", () => fileInput.click()); 
+        dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag-over"); }); 
+        dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over")); 
         dropzone.addEventListener("drop", async (e) => { 
-            e.preventDefault(); dropzone.classList.remove("drag-over"); 
+            e.preventDefault(); 
+            dropzone.classList.remove("drag-over"); 
             const file = e.dataTransfer.files[0]; 
             if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) { 
-                batchResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando archivo...';
-                validationResult.classList.add("hidden");
+                batchResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando archivo...'; 
+                validationResult.classList.add("hidden"); 
                 try { 
                     const r = await procesarExcelConValidacion(file); 
                     batchResult.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-lg">✅ Carga completada<br>📊 Filas: ${r.totalFilas}<br>➕ Nuevos: ${r.agregados}<br>🔄 Actualizados: ${r.actualizados}<br>📌 Total: ${r.totalFinal}</div>`; 
-                } catch(err) { 
-                    batchResult.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ Error: ${err.message}</div>`;
-                    if (err.message.includes("Encabezados")) {
-                        validationResult.classList.remove("hidden");
-                        validationResult.innerHTML = `<div class="bg-yellow-50 border p-3 rounded-lg">⚠️ ${err.message}<br>Esperados: ${COLUMNAS.map(c=>`"${c.expected}"`).join(", ")}</div>`;
-                    }
+                } catch (err) { 
+                    batchResult.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ Error: ${err.message}</div>`; 
+                    if (err.message.includes("Encabezados")) { 
+                        validationResult.classList.remove("hidden"); 
+                        validationResult.innerHTML = `<div class="bg-yellow-50 border p-3 rounded-lg">⚠️ ${err.message}<br>Esperados: ${COLUMNAS.map(c => `"${c.expected}"`).join(", ")}</div>`; 
+                    } 
                 } 
-            } else { batchResult.innerHTML = '<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ Archivo no válido</div>'; } 
-        });
+            } else { 
+                batchResult.innerHTML = '<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ Archivo no válido</div>'; 
+            } 
+        }); 
         fileInput.addEventListener("change", async (e) => { 
             const file = e.target.files[0]; 
             if (file) { 
-                batchResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-                try { const r = await procesarExcelConValidacion(file); batchResult.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-lg">✅ Carga completada<br>➕ Nuevos: ${r.agregados}<br>🔄 Actualizados: ${r.actualizados}<br>📌 Total: ${r.totalFinal}</div>`; } 
-                catch(err) { batchResult.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ ${err.message}</div>`; }
+                batchResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...'; 
+                try { 
+                    const r = await procesarExcelConValidacion(file); 
+                    batchResult.innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded-lg">✅ Carga completada<br>➕ Nuevos: ${r.agregados}<br>🔄 Actualizados: ${r.actualizados}<br>📌 Total: ${r.totalFinal}</div>`; 
+                } catch (err) { 
+                    batchResult.innerHTML = `<div class="bg-red-100 text-red-700 p-3 rounded-lg">❌ ${err.message}</div>`; 
+                } 
                 fileInput.value = ''; 
             } 
-        });
+        }); 
     }
-
-    function initModal() {
-        const modal = document.getElementById("editModal");
-        const closeBtn = document.getElementById("closeModalBtn");
-        const cancelBtn = document.getElementById("cancelModalBtn");
-        const saveBtn = document.getElementById("saveModalBtn");
-        const textarea = document.getElementById("modalTextarea");
-        
-        closeBtn.onclick = cerrarModal;
-        cancelBtn.onclick = cerrarModal;
-        saveBtn.onclick = guardarModal;
-        
-        modal.onclick = (e) => {
-            if (e.target === modal) cerrarModal();
-        };
-        
-        textarea.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && e.ctrlKey) {
-                e.preventDefault();
-                guardarModal();
-            }
-        });
+    
+    function initModal() { 
+        const modal = document.getElementById("editModal"); 
+        const closeBtn = document.getElementById("closeModalBtn"); 
+        const cancelBtn = document.getElementById("cancelModalBtn"); 
+        closeBtn.onclick = () => modal.classList.add("hidden"); 
+        cancelBtn.onclick = () => modal.classList.add("hidden"); 
+        modal.onclick = (e) => { if (e.target === modal) modal.classList.add("hidden"); }; 
     }
-
-    function init() {
-        cargarStorage();
+    
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
+    
+    // ==========================================
+    // INICIALIZACIÓN DE LA APLICACIÓN
+    // ==========================================
+    async function iniciarAppCompleta() {
         renderHeader();
-        aplicarFiltros();
         initModal();
-        
-        document.getElementById("filtroRapidoUnidad").addEventListener("change", () => {
-            filtrosRapidos.unidadNegocio = document.getElementById("filtroRapidoUnidad").value;
-            aplicarFiltros();
-        });
-        document.getElementById("filtroRapidoArea").addEventListener("change", () => {
-            filtrosRapidos.area = document.getElementById("filtroRapidoArea").value;
-            aplicarFiltros();
-        });
-        document.getElementById("filtroRapidoTipoMacro").addEventListener("change", () => {
-            filtrosRapidos.tipoMacro = document.getElementById("filtroRapidoTipoMacro").value;
-            aplicarFiltros();
-        });
-        document.getElementById("filtroRapidoMacro").addEventListener("change", () => {
-            filtrosRapidos.macroproceso = document.getElementById("filtroRapidoMacro").value;
-            aplicarFiltros();
-        });
-        document.getElementById("filtroRapidoPrioridad").addEventListener("change", () => {
-            filtrosRapidos.prioridad = document.getElementById("filtroRapidoPrioridad").value;
-            aplicarFiltros();
-        });
-        
-        document.getElementById("btnAgregarFila").onclick = agregarFila;
-        document.getElementById("btnExportarExcel").onclick = exportarExcel;
-        document.getElementById("btnExportarJSON").onclick = exportarJSON;
-        document.getElementById("btnImportarJSON").onclick = importarJSON;
-        document.getElementById("btnLimpiarTodo").onclick = limpiarTodo;
-        document.getElementById("btnLimpiarTodosFiltros").onclick = limpiarTodosFiltros;
         initBatchUpload();
 
-        document.getElementById("tabMatriz").onclick = () => { 
-            document.getElementById("contentMatriz").classList.remove("hidden"); 
-            document.getElementById("contentBatch").classList.add("hidden"); 
-            document.getElementById("tabMatriz").classList.add("border-b-2","border-indigo-600","text-indigo-600"); 
-            document.getElementById("tabBatch").classList.remove("border-b-2","border-indigo-600","text-indigo-600"); 
-            document.getElementById("tabBatch").classList.add("text-gray-500"); 
-        };
-        document.getElementById("tabBatch").onclick = () => { 
-            document.getElementById("contentBatch").classList.remove("hidden"); 
-            document.getElementById("contentMatriz").classList.add("hidden"); 
-            document.getElementById("tabBatch").classList.add("border-b-2","border-indigo-600","text-indigo-600"); 
-            document.getElementById("tabMatriz").classList.remove("border-b-2","border-indigo-600","text-indigo-600"); 
-            document.getElementById("tabMatriz").classList.add("text-gray-500"); 
-        };
+        const supabaseInicializado = initSupabase();
+        let cargadoDesdeNube = false;
+        
+        if (supabaseInicializado) {
+            cargadoDesdeNube = await cargarDesdeSupabase();
+            if (cargadoDesdeNube) {
+                suscribirCambiosEnTiempoReal();
+            }
+        }
+        
+        // Si falló la conexión o la nube no regresó registros, recurrir a LocalStorage
+        if (!cargadoDesdeNube) {
+            console.log("ℹ️ Cargando datos desde el almacenamiento local (Fallback)...");
+            cargarStorage();
+            renderTabla();
+            actualizarTodosLosFiltros();
+            if(supabaseInicializado && procesosData.length > 0) {
+                // Si hay internet pero la tabla remota estaba vacía, subir local activo
+                await subirTodosASupabase();
+                suscribirCambiosEnTiempoReal();
+            }
+        }
+        
+        // Configurar eventos de los selects de filtrado rápido
+        document.getElementById("filtroRapidoUnidad").addEventListener("change", () => { 
+            filtrosRapidos.unidadNegocio = document.getElementById("filtroRapidoUnidad").value; 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+        }); 
+        document.getElementById("filtroRapidoArea").addEventListener("change", () => { 
+            filtrosRapidos.area = document.getElementById("filtroRapidoArea").value; 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+        }); 
+        document.getElementById("filtroRapidoTipoMacro").addEventListener("change", () => { 
+            filtrosRapidos.tipoMacro = document.getElementById("filtroRapidoTipoMacro").value; 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+        }); 
+        document.getElementById("filtroRapidoMacro").addEventListener("change", () => { 
+            filtrosRapidos.macroproceso = document.getElementById("filtroRapidoMacro").value; 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+        }); 
+        document.getElementById("filtroRapidoPrioridad").addEventListener("change", () => { 
+            filtrosRapidos.prioridad = document.getElementById("filtroRapidoPrioridad").value; 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+        }); 
+        
+        document.getElementById("btnAgregarFila").onclick = agregarFila; 
+        document.getElementById("btnExportarExcel").onclick = exportarExcel; 
+        document.getElementById("btnExportarJSON").onclick = exportarJSON; 
+        document.getElementById("btnImportarJSON").onclick = importarJSON; 
+        document.getElementById("btnLimpiarTodo").onclick = limpiarTodo; 
+        document.getElementById("btnLimpiarTodosFiltros").onclick = limpiarTodosFiltros; 
+        document.getElementById("cerrarSesionBtn").onclick = () => cerrarSesion(false);
+        document.getElementById("cerrarSesionBtnBatch").onclick = () => cerrarSesion(false);
+        
+        const tabMatriz = document.getElementById('tabMatriz');
+        const tabBatch = document.getElementById('tabBatch');
+        const contentMatriz = document.getElementById('contentMatriz');
+        const contentBatch = document.getElementById('contentBatch');
+        
+        function setActiveTab(active) {
+            if (active === 'matriz') {
+                tabMatriz.className = 'tab-active py-2 px-4 md:px-6 rounded-md transition-all duration-200 text-xs md:text-sm font-semibold';
+                tabBatch.className = 'tab-inactive py-2 px-4 md:px-6 rounded-md transition-all duration-200 text-xs md:text-sm font-medium';
+                contentMatriz.classList.remove('hidden');
+                contentBatch.classList.add('hidden');
+            } else {
+                tabBatch.className = 'tab-active py-2 px-4 md:px-6 rounded-md transition-all duration-200 text-xs md:text-sm font-semibold';
+                tabMatriz.className = 'tab-inactive py-2 px-4 md:px-6 rounded-md transition-all duration-200 text-xs md:text-sm font-medium';
+                contentBatch.classList.remove('hidden');
+                contentMatriz.classList.add('hidden');
+            }
+        }
+        
+        tabMatriz.onclick = () => setActiveTab('matriz');
+        tabBatch.onclick = () => setActiveTab('batch');
     }
-
-    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
     
-    init();
+    function iniciarSesion(role) {
+        currentUserRole = role;
+        guardarSesion();
+        resetSessionTimer();
+        
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        
+        const userSpan = document.getElementById('userRoleDisplay');
+        if (userSpan) userSpan.innerText = role === 'manager' ? 'Manager' : 'Process Owner';
+        
+        iniciarAppCompleta();
+        
+        const events = ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+        events.forEach(event => {
+            document.addEventListener(event, resetSessionTimer);
+        });
+    }
+    
+    function cerrarSesion(porInactividad = false) {
+        if (isClosingSession) return;
+        isClosingSession = true;
+        
+        if (!porInactividad && !confirm("¿Desea cerrar sesión?")) {
+            isClosingSession = false;
+            return;
+        }
+        
+        currentUserRole = null;
+        localStorage.removeItem("bia_session_role");
+        localStorage.removeItem("bia_session_time");
+        if (sessionTimeout) clearTimeout(sessionTimeout);
+        if (timerInterval) clearInterval(timerInterval);
+        
+        const events = ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+        events.forEach(event => {
+            document.removeEventListener(event, resetSessionTimer);
+        });
+        
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'flex';
+        
+        rotation = 0;
+        selectedCard = cards[0];
+        renderCarouselLogin();
+        isClosingSession = false;
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const leftBtn = document.getElementById('carouselLeft');
+        const rightBtn = document.getElementById('carouselRight');
+        if (leftBtn) leftBtn.onclick = () => { rotation -= 180; renderCarouselLogin(); };
+        if (rightBtn) rightBtn.onclick = () => { rotation += 180; renderCarouselLogin(); };
+        
+        if (cargarSesion()) {
+            iniciarSesion(currentUserRole);
+        } else {
+            selectedCard = cards[0];
+            renderCarouselLogin();
+        }
+    });
 </script>
-
-<footer style="background: #f8fafc; padding: 0.75rem 1.5rem; border-top: 1px solid #e9edf2;">
-    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;">
-        <img src="https://raw.githubusercontent.com/internalcontrolengineering/Desarrollos/main/LogoCI-G.png" 
-             alt="Control Interno" 
-             style="height: 22px; width: auto; object-fit: contain; opacity: 0.5;">
-        <div style="width: 1px; height: 24px; background-color: #cbd5e1;"></div>
-        <div style="display: flex; flex-direction: column; line-height: 1.2;">
-            <span style="font-size: 0.5rem; color: #0A2540;">Control Interno</span>
-            <span style="font-size: 0.4rem; color: #94a3b8; font-weight: 500;">Ingeniería de Control</span>
-        </div>
-        <div style="width: 1px; height: 24px; background-color: #cbd5e1;"></div>
-        <div style="display: flex; flex-direction: column; line-height: 1.2;">
-            <span style="font-size: 0.5rem; color: #0A2540;">BIA - Mapa de Procesos</span>
-            <span style="font-size: 0.4rem; color: #94a3b8; font-weight: 500;">V1.0 | Mayo 2026</span>
-        </div>
-    </div>
-</footer>
-
 </body>
 </html>
