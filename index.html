@@ -397,7 +397,7 @@
     <div class="text-center mb-6">
         <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/LogoCI-BC.png?raw=true" alt="Logo Control Interno" class="h-16 md:h-20 mx-auto mb-3 object-contain">
         <h1 class="text-4xl md:text-6xl font-bold text-white mb-1">BIA</h1>
-        <h2 class="text-xl md:text-3xl font-bold text-gray-300">Mapa de Procesos</h2>
+        <h2 class="text-xl md:text-3xl font-bold text-gray-300">Levantamiento de Procesos</h2>
     </div>
     <div class="carousel-container">
         <button id="carouselLeft" class="carousel-btn"><i class="fas fa-chevron-left fa-2x"></i></button>
@@ -845,8 +845,8 @@ async function subirRegistroASupabase(registro) {
     let rotation = 0;
     let selectedCard = null;
     const cards = [
-        { id: 'processOwner', title: 'Process Owner', icon: 'fas fa-clipboard-list', description: 'Gestión y visualización de procesos', color: 'white' },
-        { id: 'manager', title: 'Manager', icon: 'fas fa-user-tie', description: 'Control total del sistema', color: 'white' }
+        { id: 'processOwner', title: 'Process Owner', icon: 'fas fa-clipboard-list', description: 'Gestión y visualización de procesos<br><strong style="color: #059669;">Oprime Aquí para Ingresar</strong>', color: 'white' },
+        { id: 'manager', title: 'Manager', icon: 'fas fa-user-tie', description: 'Admininistración de Procesos<br><strong style="color: #059669;">Acceso Restringido a Control Interno</strong>', color: 'white' }
     ];
     
     function renderCarouselLogin() { 
@@ -894,7 +894,7 @@ async function subirRegistroASupabase(registro) {
     // ==========================================
     // CONFIGURACIÓN DE TIEMPO DE SESIÓN
     // ==========================================
-    const SESSION_MINUTES = 10;
+    const SESSION_MINUTES = 20;
     const SESSION_DURATION = SESSION_MINUTES * 60 * 1000;
     
     let sessionTimeout = null;
