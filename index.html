@@ -1405,77 +1405,127 @@ async function subirRegistroASupabase(registro) {
         }; 
     }
     
-    async function procesarExcelConValidacion(file) { 
-        return new Promise((resolve, reject) => { 
-            const reader = new FileReader(); 
-            reader.onload = async function(e) { 
-                const data = new Uint8Array(e.target.result); 
-                const workbook = XLSX.read(data, { type: 'array' }); 
-                let sheet = workbook.Sheets["Mapeo de Procesos"]; 
-                if (!sheet) sheet = workbook.Sheets[workbook.SheetNames[0]]; 
-                const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }); 
-                if (!rawData || rawData.length < 2) { 
-                    reject(new Error("El archivo no contiene datos suficientes")); 
-                    return; 
-                } 
-                const headers = rawData[0].map(h => h || ""); 
-                const validacion = validarEncabezados(headers); 
-                if (!validacion.esValido) { 
-                    reject(new Error(`Encabezados no válidos. Faltan: ${validacion.errores.join(", ")}`)); 
-                    return; 
-                } 
-                const mapeo = validacion.mapeo; 
-                let agregados = 0, actualizados = 0; 
-                const nuevosRegistros = []; 
-                for (let i = 1; i < rawData.length; i++) { 
-                    const fila = rawData[i]; 
-                    if (!fila || fila.length === 0) continue; 
-                    const unidad = fila[mapeo["unidadNegocio"]] ? String(fila[mapeo["unidadNegocio"]]).trim() : ""; 
-                    const area = fila[mapeo["area"]] ? String(fila[mapeo["area"]]).trim() : ""; 
-                    const macro = fila[mapeo["macroproceso"]] ? String(fila[mapeo["macroproceso"]]).trim() : ""; 
-                    const proceso = fila[mapeo["proceso"]] ? String(fila[mapeo["proceso"]]).trim() : ""; 
-                    if (!unidad || !area || !macro || !proceso) continue; 
-                    const nuevoRegistro = { 
-                        unidadNegocio: unidad, area: area, tipoMacro: fila[mapeo["tipoMacro"]] ? String(fila[mapeo["tipoMacro"]]).trim() : "", 
-                        macroproceso: macro, proceso: proceso, procedimiento: fila[mapeo["procedimiento"]] ? String(fila[mapeo["procedimiento"]]).trim() : "", 
-                        documentosSoporte: fila[mapeo["documentosSoporte"]] ? String(fila[mapeo["documentosSoporte"]]).trim() : "", 
-                        input: fila[mapeo["input"]] ? String(fila[mapeo["input"]]).trim() : "", 
-                        output: fila[mapeo["output"]] ? String(fila[mapeo["output"]]).trim() : "", 
-                        riesgos: fila[mapeo["riesgos"]] ? String(fila[mapeo["riesgos"]]).trim() : "", 
-                        partesRelacionadas: fila[mapeo["partesRelacionadas"]] ? String(fila[mapeo["partesRelacionadas"]]).trim() : "", 
-                        prioridad: fila[mapeo["prioridad"]] ? String(fila[mapeo["prioridad"]]).trim() : "", 
-                        comentarios: fila[mapeo["comentarios"]] ? String(fila[mapeo["comentarios"]]).trim() : "" 
-                    }; 
-                    const existeIndex = procesosData.findIndex(p => p.unidadNegocio === nuevoRegistro.unidadNegocio && p.area === nuevoRegistro.area && p.macroproceso === nuevoRegistro.macroproceso && p.proceso === nuevoRegistro.proceso); 
-                    if (existeIndex !== -1) { 
-                        let huboCambios = false; 
-                        for (const col of COLUMNAS) { 
-                            if (procesosData[existeIndex][col.field] !== nuevoRegistro[col.field]) { 
-                                procesosData[existeIndex][col.field] = nuevoRegistro[col.field]; 
-                                huboCambios = true; 
-                            } 
-                        } 
-                        if (huboCambios) actualizados++; 
-                    } else { 
-                        nuevoRegistro.id = nextId++; 
-                        nuevosRegistros.push(nuevoRegistro); 
-                        agregados++; 
-                    } 
-                } 
-                for (const nuevo of nuevosRegistros) procesosData.push(nuevo); 
-                guardarStorage(); 
-                renderTabla(); 
-                actualizarTodosLosFiltros(); 
+async function procesarExcelConValidacion(file) { 
+    return new Promise((resolve, reject) => { 
+        const reader = new FileReader(); 
+        reader.onload = async function(e) { 
+            const data = new Uint8Array(e.target.result); 
+            const workbook = XLSX.read(data, { type: 'array' }); 
+            let sheet = workbook.Sheets["Mapeo de Procesos"]; 
+            if (!sheet) sheet = workbook.Sheets[workbook.SheetNames[0]]; 
+            const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }); 
+            if (!rawData || rawData.length < 2) { 
+                reject(new Error("El archivo no contiene datos suficientes")); 
+                return; 
+            } 
+            const headers = rawData[0].map(h => h || ""); 
+            const validacion = validarEncabezados(headers); 
+            if (!validacion.esValido) { 
+                reject(new Error(`Encabezados no válidos. Faltan: ${validacion.errores.join(", ")}`)); 
+                return; 
+            } 
+            const mapeo = validacion.mapeo; 
+            let agregados = 0, actualizados = 0; 
+            const nuevosRegistros = []; 
+            
+            // Función auxiliar para normalizar cualquier valor a string
+            function normalizarValor(valor) {
+                if (valor === undefined || valor === null) return "";
+                let str = String(valor).trim();
+                if (str === "") return "";
+                return str;
+            }
+            
+            for (let i = 1; i < rawData.length; i++) { 
+                const fila = rawData[i]; 
+                if (!fila || fila.length === 0) continue; 
                 
-                if (supabaseClient && (agregados > 0 || actualizados > 0)) {
-                    await subirTodosASupabase();
+                // Leer TODOS los campos con normalización
+                const nuevoRegistro = { 
+                    unidadNegocio: normalizarValor(fila[mapeo["unidadNegocio"]]),
+                    area: normalizarValor(fila[mapeo["area"]]),
+                    tipoMacro: normalizarValor(fila[mapeo["tipoMacro"]]),
+                    macroproceso: normalizarValor(fila[mapeo["macroproceso"]]),
+                    proceso: normalizarValor(fila[mapeo["proceso"]]),
+                    procedimiento: normalizarValor(fila[mapeo["procedimiento"]]),
+                    documentosSoporte: normalizarValor(fila[mapeo["documentosSoporte"]]),
+                    input: normalizarValor(fila[mapeo["input"]]),
+                    output: normalizarValor(fila[mapeo["output"]]),
+                    riesgos: normalizarValor(fila[mapeo["riesgos"]]),
+                    partesRelacionadas: normalizarValor(fila[mapeo["partesRelacionadas"]]),
+                    prioridad: normalizarValor(fila[mapeo["prioridad"]]),
+                    comentarios: normalizarValor(fila[mapeo["comentarios"]])
+                }; 
+                
+                // 🔥 CLAVE ÚNICA AHORA INCLUYE PROCEDIMIENTO
+                // Buscar si ya existe usando: Unidad Negocio + Área + Macroproceso + Proceso + Procedimiento
+                const existeIndex = procesosData.findIndex(p => 
+                    normalizarValor(p.unidadNegocio) === nuevoRegistro.unidadNegocio && 
+                    normalizarValor(p.area) === nuevoRegistro.area && 
+                    normalizarValor(p.macroproceso) === nuevoRegistro.macroproceso && 
+                    normalizarValor(p.proceso) === nuevoRegistro.proceso &&
+                    normalizarValor(p.procedimiento) === nuevoRegistro.procedimiento  // ← NUEVO: incluir procedimiento
+                ); 
+                
+                if (existeIndex !== -1) { 
+                    // Actualizar CADA CAMPO individualmente
+                    let huboCambios = false;
+                    let camposActualizados = [];
+                    
+                    for (const col of COLUMNAS) { 
+                        const nuevoValor = nuevoRegistro[col.field];
+                        const valorActual = normalizarValor(procesosData[existeIndex][col.field]);
+                        
+                        if (nuevoValor !== valorActual) { 
+                            procesosData[existeIndex][col.field] = nuevoValor;
+                            huboCambios = true;
+                            camposActualizados.push(col.label);
+                        } 
+                    } 
+                    
+                    if (huboCambios) {
+                        actualizados++;
+                        console.log(`✅ Actualizado: ${nuevoRegistro.unidadNegocio} - ${nuevoRegistro.proceso} - ${nuevoRegistro.procedimiento}`);
+                        if (camposActualizados.length > 0) {
+                            console.log(`   Campos: ${camposActualizados.join(", ")}`);
+                        }
+                    }
+                } else { 
+                    // Es un registro completamente nuevo
+                    nuevoRegistro.id = nextId++; 
+                    nuevosRegistros.push(nuevoRegistro); 
+                    agregados++; 
+                    console.log(`➕ Nuevo: ${nuevoRegistro.unidadNegocio} - ${nuevoRegistro.proceso} - ${nuevoRegistro.procedimiento}`);
                 } 
-                resolve({ agregados, actualizados, totalFilas: rawData.length - 1, totalFinal: procesosData.length }); 
-            }; 
-            reader.onerror = () => reject(new Error("Error al leer el archivo")); 
-            reader.readAsArrayBuffer(file); 
-        }); 
-    }
+            } 
+            
+            // Agregar los nuevos registros al array principal
+            for (const nuevo of nuevosRegistros) {
+                procesosData.push(nuevo);
+            }
+            
+            guardarStorage(); 
+            renderTabla(); 
+            actualizarTodosLosFiltros(); 
+            
+            mostrarNotificacion(`${agregados} nuevos, ${actualizados} actualizados`, "success");
+            
+            // Sincronizar con Supabase si está disponible
+            if (supabaseClient && (agregados > 0 || actualizados > 0)) {
+                await subirTodosASupabase();
+            } 
+            
+            resolve({ 
+                agregados, 
+                actualizados, 
+                totalFilas: rawData.length - 1, 
+                totalFinal: procesosData.length 
+            }); 
+        }; 
+        reader.onerror = () => reject(new Error("Error al leer el archivo")); 
+        reader.readAsArrayBuffer(file); 
+    }); 
+}
     
     function initBatchUpload() { 
         const dropzone = document.getElementById("dropzone"); 
