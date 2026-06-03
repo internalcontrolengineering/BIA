@@ -115,6 +115,84 @@
         .resize-handle:hover { background-color: #888888; opacity: 0.4; }
         .filtro-columna { width: 100%; font-size: 0.7rem; padding: 4px; margin-top: 6px; border: 1px solid #c0c0c0; border-radius: 6px; background: white; }
         .filtro-rapido { border: 1px solid #c0c0c0; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; background: white; }
+
+/* === MULTISELECT PERSONALIZADO PARA FILTROS === */
+.multi-select {
+    position: relative;
+    width: 100%;
+    font-size: 0.7rem;
+    margin-top: 6px;
+    z-index: 40;
+}
+
+.multi-select-trigger {
+    padding: 6px 8px;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.multi-select-trigger.active {
+    background-color: #fff9e6;  /* Fondo amarillo claro */
+    border-color: #d4a000;       /* Borde más oscuro */
+}
+
+.multi-select-dropdown {
+    position: fixed !important;
+    background: white;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+    z-index: 9999 !important;
+    max-height: 280px;
+    overflow-y: auto;
+    display: none;
+    width: 240px;
+}
+
+.multi-select-dropdown.open {
+    display: block;
+}
+
+.multi-select-search {
+    padding: 8px;
+    border-bottom: 1px solid #e5e5e5;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+}
+
+.multi-select-options {
+    padding: 4px 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.multi-select-option {
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+}
+
+.multi-select-option:hover {
+    background-color: #f3f4f6;
+}
+
+.multi-select-option input[type="checkbox"] {
+    margin: 0;
+    accent-color: #4a4a4a;
+}
         
         /* Filtros rápidos responsive */
         .filtros-grid {
@@ -415,6 +493,31 @@
         .sync-indicator.error {
             color: #ef4444;
         }
+
+/* Estilo para selects con scroll limitado */
+select {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.filtro-columna {
+    width: 100%;
+    font-size: 0.7rem;
+    padding: 4px;
+    margin-top: 6px;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    background: white;
+}
+
+.filtro-rapido {
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    background: white;
+}
+
     </style>
 </head>
 <body>
@@ -1047,7 +1150,8 @@ async function subirRegistroASupabase(registro) {
         { field: "comentarios", label: "Comentarios", expected: "Comentarios", tipo: "textarea" }
     ];
 
-    let procesosData = [], nextId = 1, filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" }, filtrosColumna = {}, columnWidth = 160;
+let procesosData = [], nextId = 1, filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" }, filtrosColumna = {}, columnWidth = 160;
+let isUpdatingGlobal = false; // ← Agrega esta línea
 
     function ordenarDatos(data) { return [...data].sort((a,b)=>{ const uA=(a.unidadNegocio||"").toLowerCase(), uB=(b.unidadNegocio||"").toLowerCase(); if(uA!==uB) return uA.localeCompare(uB); const aA=(a.area||"").toLowerCase(), aB=(b.area||"").toLowerCase(); if(aA!==aB) return aA.localeCompare(aB); const tA=(a.tipoMacro||"").toLowerCase(), tB=(b.tipoMacro||"").toLowerCase(); if(tA!==tB) return tA.localeCompare(tB); const mA=(a.macroproceso||"").toLowerCase(), mB=(b.macroproceso||"").toLowerCase(); if(mA!==mB) return mA.localeCompare(mB); const pA=(a.proceso||"").toLowerCase(), pB=(b.proceso||"").toLowerCase(); if(pA!==pB) return pA.localeCompare(pB); const prA=(a.procedimiento||"").toLowerCase(), prB=(b.procedimiento||"").toLowerCase(); return prA.localeCompare(prB); }); }
 
@@ -1055,51 +1159,460 @@ async function subirRegistroASupabase(registro) {
     function cargarStorage() { const data = localStorage.getItem("mapaProcesosDataFinalV17"); if(data){ procesosData=JSON.parse(data); nextId=parseInt(localStorage.getItem("nextIdFinalV17"))||(procesosData.length?Math.max(...procesosData.map(p=>p.id))+1:1); } else { procesosData=[]; nextId=1; } const savedWidth=localStorage.getItem("columnWidthFinalV17"); if(savedWidth) columnWidth=parseInt(savedWidth); }
     function aplicarAnchoTodasColumnas(nuevoAncho) { columnWidth=nuevoAncho; const ths=document.querySelectorAll('#tableHead th'); for(let i=0;i<ths.length;i++){ ths[i].style.width=columnWidth+'px'; ths[i].style.minWidth=columnWidth+'px'; } const filas=document.querySelectorAll('#tablaBody tr'); for(const fila of filas){ const celdas=fila.querySelectorAll('td'); for(let i=0;i<celdas.length;i++){ celdas[i].style.width=columnWidth+'px'; } } guardarStorage(); }
     function normalizarTexto(texto) { if(!texto) return ""; return texto.toString().toLowerCase().trim().replace(/[áéíóú]/g, m=>({'á':'a','é':'e','í':'i','ó':'o','ú':'u'}[m])).replace(/\s+/g, ' '); }
-    function validarEncabezados(headers) { const errores=[], mapeo={}; for(let i=0;i<COLUMNAS.length;i++){ const col=COLUMNAS[i]; const expectedNorm=normalizarTexto(col.expected); let encontrado=false; for(let j=0;j<headers.length;j++){ if(normalizarTexto(headers[j])===expectedNorm){ encontrado=true; mapeo[col.field]=j; break; } } if(!encontrado) errores.push(`"${col.expected}"`); } return { esValido: errores.length===0, errores, mapeo }; }
-    function getDataFiltrada() { let data=procesosData.filter(row=>{ if(filtrosRapidos.unidadNegocio&&row.unidadNegocio!==filtrosRapidos.unidadNegocio) return false; if(filtrosRapidos.area&&row.area!==filtrosRapidos.area) return false; if(filtrosRapidos.tipoMacro&&row.tipoMacro!==filtrosRapidos.tipoMacro) return false; if(filtrosRapidos.macroproceso&&row.macroproceso!==filtrosRapidos.macroproceso) return false; if(filtrosRapidos.prioridad&&row.prioridad!==filtrosRapidos.prioridad) return false; for(const [field,valor] of Object.entries(filtrosColumna)){ if(valor&&row[field]!==valor) return false; } return true; }); return ordenarDatos(data); }
-    function actualizarTodosLosFiltros() { const dataFiltrada=getDataFiltrada(); const camposRapidos=[{id:"filtroRapidoUnidad",field:"unidadNegocio",label:"Unidad Negocio"},{id:"filtroRapidoArea",field:"area",label:"Área"},{id:"filtroRapidoTipoMacro",field:"tipoMacro",label:"Tipo Macro"},{id:"filtroRapidoMacro",field:"macroproceso",label:"Macroproceso"},{id:"filtroRapidoPrioridad",field:"prioridad",label:"Prioridad"}]; camposRapidos.forEach(campo=>{ const select=document.getElementById(campo.id); if(!select) return; const valores=new Set(); dataFiltrada.forEach(item=>{ if(item[campo.field]&&item[campo.field].trim()) valores.add(item[campo.field].trim()); }); let options=`<option value="">${campo.label==="Unidad Negocio"?"Todas":campo.label==="Área"?"Todas":campo.label==="Prioridad"?"Todas":"Todos"}</option>`; Array.from(valores).sort().forEach(v=>{ options+=`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; }); select.innerHTML=options; if(filtrosRapidos[campo.field]&&valores.has(filtrosRapidos[campo.field])) select.value=filtrosRapidos[campo.field]; else select.value=""; }); COLUMNAS.forEach(col=>{ const select=document.getElementById(`filtro_${col.field}`); if(!select) return; const valores=new Set(); dataFiltrada.forEach(item=>{ if(item[col.field]&&item[col.field].trim()) valores.add(item[col.field].trim()); }); let options='<option value="">Todos</option>'; Array.from(valores).sort().forEach(v=>{ options+=`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; }); select.innerHTML=options; if(filtrosColumna[col.field]&&valores.has(filtrosColumna[col.field])) select.value=filtrosColumna[col.field]; else select.value=""; }); }
-    function aplicarFiltros() { renderTabla(); actualizarTodosLosFiltros(); }
-    function limpiarTodosFiltros() { filtrosRapidos={ unidadNegocio:"", area:"", tipoMacro:"", macroproceso:"", prioridad:"" }; filtrosColumna={}; document.querySelectorAll('.filtro-rapido, .filtro-columna').forEach(s=>s.value=""); renderTabla(); actualizarTodosLosFiltros(); }
+    function validarEncabezados(headers) { const errores=[], mapeo={}; for(let i=0;i<COLUMNAS.length;i++){ const col=COLUMNAS[i]; const expectedNorm=normalizarTexto(col.expected); let encontrado=false; for(let j=0;j<headers.length;j++){ if(normalizarTexto(headers[j])===expectedNorm){ encontrado=true; mapeo[col.field]=j; break; } } if(!encontrado) errores.push(`"${col.expected}"`); } return { esValido: errores.length===0, errores, mapeo }; }    
+function getDataFiltrada() { 
+    return procesosData.filter(row => { 
+        // 1. Evaluar Filtros Rápidos (Selects superiores)
+        if (filtrosRapidos.unidadNegocio && row.unidadNegocio !== filtrosRapidos.unidadNegocio) return false;
+        if (filtrosRapidos.area && row.area !== filtrosRapidos.area) return false;
+        if (filtrosRapidos.tipoMacro && row.tipoMacro !== filtrosRapidos.tipoMacro) return false;
+        if (filtrosRapidos.macroproceso && row.macroproceso !== filtrosRapidos.macroproceso) return false;
+        if (filtrosRapidos.prioridad && row.prioridad !== filtrosRapidos.prioridad) return false;
+
+        // 2. Evaluar Filtros de Columna (Multi-select)
+        for (const [field, valoresSeleccionados] of Object.entries(filtrosColumna)) {
+            if (!valoresSeleccionados || !Array.isArray(valoresSeleccionados) || valoresSeleccionados.length === 0) {
+                continue;
+            }
+            
+            const valorCelda = (row[field] || "").trim();
+            let coincide = false;
+            for (const v of valoresSeleccionados) {
+                if (v === "__VACIO__" && valorCelda === "") {
+                    coincide = true;
+                    break;
+                } else if (v !== "__VACIO__" && v === valorCelda) {
+                    coincide = true;
+                    break;
+                }
+            }
+            if (!coincide) return false;
+        }
+        
+        return true; 
+    }); 
+}
+
+// NUEVO: Obtiene la data filtrada omitiendo una clave específica (Lógica cascada multiselect para filtros rápidos)
+function obtenerDatosExcluyendoFiltro(claveFiltro, esFiltroRapido = false) {
+    return procesosData.filter(row => {
+        // Validar Filtros Rápidos (excepto el actual si coincide)
+        if (!esFiltroRapido || claveFiltro !== "unidadNegocio") {
+            if (filtrosRapidos.unidadNegocio && row.unidadNegocio !== filtrosRapidos.unidadNegocio) return false;
+        }
+        if (!esFiltroRapido || claveFiltro !== "area") {
+            if (filtrosRapidos.area && row.area !== filtrosRapidos.area) return false;
+        }
+        if (!esFiltroRapido || claveFiltro !== "tipoMacro") {
+            if (filtrosRapidos.tipoMacro && row.tipoMacro !== filtrosRapidos.tipoMacro) return false;
+        }
+        if (!esFiltroRapido || claveFiltro !== "macroproceso") {
+            if (filtrosRapidos.macroproceso && row.macroproceso !== filtrosRapidos.macroproceso) return false;
+        }
+        if (!esFiltroRapido || claveFiltro !== "prioridad") {
+            if (filtrosRapidos.prioridad && row.prioridad !== filtrosRapidos.prioridad) return false;
+        }
+
+        // Validar Filtros de Columna (excepto el actual si coincide)
+        for (const [f, valoresSeleccionados] of Object.entries(filtrosColumna)) {
+            if (esFiltroRapido === false && f === claveFiltro) continue;
+            
+            if (!valoresSeleccionados || !Array.isArray(valoresSeleccionados) || valoresSeleccionados.length === 0) {
+                continue;
+            }
+            
+            const valorCelda = (row[f] || "").trim();
+            let coincide = false;
+            for (const v of valoresSeleccionados) {
+                if (v === "__VACIO__" && valorCelda === "") {
+                    coincide = true;
+                    break;
+                } else if (v !== "__VACIO__" && v === valorCelda) {
+                    coincide = true;
+                    break;
+                }
+            }
+            if (!coincide) return false;
+        }
+        return true;
+    });
+}
+
+function actualizarTodosLosFiltros() { 
+    if (isUpdatingGlobal) return;
+    isUpdatingGlobal = true;
     
-    function renderHeader() { 
-        const thead = document.getElementById("tableHead"); 
-        let html = '<tr>'; 
-        for(let i = 0; i < COLUMNAS.length; i++){ 
-            const col = COLUMNAS[i]; 
-            html += `<th class="font-extrabold" style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: sticky; top: 0; background-color: #e0e0e0; z-index: 30;">${col.label}<select class="filtro-columna" id="filtro_${col.field}" style="margin-top: 8px;"><option value="">Todos</option></select><div class="resize-handle" data-col="${i}" style="z-index: 40;"></div></th>`; 
-        } 
-        html += `<th class="font-extrabold" style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: sticky; top: 0; background-color: #e0e0e0; z-index: 30;">Acción<div class="resize-handle" data-col="${COLUMNAS.length}" style="z-index: 40;"></div></th>`; 
-        html += '</tr>'; 
-        thead.innerHTML = html; 
+    try {
+        const camposRapidos = [
+            {id: "filtroRapidoUnidad",     field: "unidadNegocio", label: "Unidad Negocio"},
+            {id: "filtroRapidoArea",       field: "area",          label: "Área"},
+            {id: "filtroRapidoTipoMacro",  field: "tipoMacro",     label: "Tipo Macro"},
+            {id: "filtroRapidoMacro",      field: "macroproceso",  label: "Macroproceso"},
+            {id: "filtroRapidoPrioridad",  field: "prioridad",     label: "Prioridad"}
+        ]; 
         
-        COLUMNAS.forEach(col => { 
-            const select = document.getElementById(`filtro_${col.field}`); 
-            if(select) select.addEventListener("change", () => { 
-                filtrosColumna[col.field] = select.value; 
-                aplicarFiltros(); 
+        camposRapidos.forEach(campo => { 
+            const select = document.getElementById(campo.id);
+            if (!select) return;
+
+            // Cambiado: Ahora calcula las opciones excluyendo la selección del propio control para no auto-bloquearse
+            const dataFiltradaIndependiente = obtenerDatosExcluyendoFiltro(campo.field, true);
+
+            const valoresSet = new Set();
+            let tieneVacios = false;
+
+            dataFiltradaIndependiente.forEach(item => { 
+                let valor = item[campo.field] || "";
+                if (valor === "") tieneVacios = true;
+                else if (valor.trim() !== "") valoresSet.add(valor.trim());
+            });
+
+            let valores = Array.from(valoresSet).sort((a,b) => a.localeCompare(b));
+            let options = `<option value="">${campo.label === "Unidad Negocio" || campo.label === "Área" || campo.label === "Prioridad" ? "Todas" : "Todos"}</option>`;
+            
+            if (tieneVacios) {
+                options += `<option value="__VACIO__">(Vacío)</option>`;
+            }
+            
+            valores.forEach(v => { 
+                options += `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`; 
             }); 
-        }); 
-        
-        document.querySelectorAll('.resize-handle').forEach(handle => { 
-            handle.addEventListener('mousedown', (e) => { 
-                e.preventDefault(); 
-                const startX = e.clientX; 
-                const startWidth = columnWidth; 
-                const onMouseMove = (moveEvent) => { 
-                    const newWidth = startWidth + (moveEvent.clientX - startX); 
-                    if(newWidth < 100) return; 
-                    if(newWidth > 500) return; 
-                    aplicarAnchoTodasColumnas(newWidth); 
-                }; 
-                const onMouseUp = () => { 
-                    window.removeEventListener('mousemove', onMouseMove); 
-                    window.removeEventListener('mouseup', onMouseUp); 
-                }; 
-                window.addEventListener('mousemove', onMouseMove); 
-                window.addEventListener('mouseup', onMouseUp); 
-            }); 
-        }); 
+            
+            const currentValue = select.value;
+            select.innerHTML = options;
+            
+            if (currentValue && (currentValue === "__VACIO__" || valoresSet.has(currentValue))) {
+                select.value = currentValue;
+            } else {
+                select.value = "";
+                filtrosRapidos[campo.field] = "";
+            }
+        });
+
+        // Refrescar los componentes multiselect de las columnas
+        COLUMNAS.forEach(col => {
+            const container = document.getElementById(`multi_${col.field}`);
+            if (container && typeof container.refresh === 'function') {
+                container.refresh();
+            }
+        });
+    } finally {
+        isUpdatingGlobal = false;
     }
+}
+
+function initMultiSelect(field) {
+    const container = document.getElementById(`multi_${field}`);
+    if (!container) return;
+
+    // Limpiar event listeners previos si existen
+    const oldTrigger = container.querySelector('.multi-select-trigger');
+    if (oldTrigger && oldTrigger._listener) {
+        oldTrigger.removeEventListener('click', oldTrigger._listener);
+    }
+
+    const trigger = container.querySelector('.multi-select-trigger');
+    const dropdown = container.querySelector('.multi-select-dropdown');
+    const searchInput = container.querySelector('.search-input');
+    const optionsContainer = container.querySelector(`#options_${field}`);
+
+    let selectedValues = new Set(Array.isArray(filtrosColumna[field]) ? filtrosColumna[field] : []);
+    let isUpdating = false; 
+
+    // NUEVO: Obtiene los datos filtrados por TODAS las columnas EXCEPTO la actual
+    function obtenerDatosParaEsteFiltro() {
+        return procesosData.filter(row => {
+            // 1. Aplicar Filtros Rápidos globales
+            if (filtrosRapidos.unidadNegocio && row.unidadNegocio !== filtrosRapidos.unidadNegocio) return false;
+            if (filtrosRapidos.area && row.area !== filtrosRapidos.area) return false;
+            if (filtrosRapidos.tipoMacro && row.tipoMacro !== filtrosRapidos.tipoMacro) return false;
+            if (filtrosRapidos.macroproceso && row.macroproceso !== filtrosRapidos.macroproceso) return false;
+            if (filtrosRapidos.prioridad && row.prioridad !== filtrosRapidos.prioridad) return false;
+
+            // 2. Aplicar Filtros de Columna EXCEPTO el de este campo activo (para evitar auto-filtrado)
+            for (const [f, valoresSeleccionados] of Object.entries(filtrosColumna)) {
+                if (f === field) continue; // <-- AQUÍ ESTÁ LA MAGIA DE LA CASCADA MULTISELECT
+                
+                if (!valoresSeleccionados || !Array.isArray(valoresSeleccionados) || valoresSeleccionados.length === 0) {
+                    continue;
+                }
+                
+                const valorCelda = (row[f] || "").trim();
+                let coincide = false;
+                for (const v of valoresSeleccionados) {
+                    if (v === "__VACIO__" && valorCelda === "") {
+                        coincide = true;
+                        break;
+                    } else if (v !== "__VACIO__" && v === valorCelda) {
+                        coincide = true;
+                        break;
+                    }
+                }
+                if (!coincide) return false;
+            }
+            return true;
+        });
+    }
+
+    function obtenerValoresUnicos() {
+        // Usamos la nueva función para que las opciones dependan de los otros filtros activos
+        const dataFiltradaCascada = obtenerDatosParaEsteFiltro();
+        const valoresSet = new Set();
+        let tieneVacios = false;
+        
+        dataFiltradaCascada.forEach(item => {
+            let valor = item[field] || "";
+            if (valor === "") {
+                tieneVacios = true;
+            } else if (valor.trim() !== "") {
+                valoresSet.add(valor.trim());
+            }
+        });
+        
+        return {
+            valores: Array.from(valoresSet).sort((a, b) => a.localeCompare(b)),
+            tieneVacios: tieneVacios
+        };
+    }
+
+    function renderOptions() {
+        const { valores, tieneVacios } = obtenerValoresUnicos();
+        const term = searchInput ? searchInput.value.toLowerCase().trim() : "";
+        
+        let html = `
+            <div class="multi-select-option" data-value="">
+                <input type="checkbox" ${selectedValues.size === 0 ? 'checked' : ''}>
+                <span>Todos</span>
+            </div>`;
+
+        if (tieneVacios) {
+            const labelVacio = "(Vacío)";
+            const visible = labelVacio.toLowerCase().includes(term) ? "" : "style='display:none;'";
+            html += `
+                <div class="multi-select-option" data-value="__VACIO__" ${visible}>
+                    <input type="checkbox" ${selectedValues.has("__VACIO__") ? 'checked' : ''}>
+                    <span>(Vacío)</span>
+                </div>`;
+        }
+
+        valores.forEach(v => {
+            const visible = v.toLowerCase().includes(term) ? "" : "style='display:none;'";
+            html += `
+                <div class="multi-select-option" data-value="${escapeHtml(v)}" ${visible}>
+                    <input type="checkbox" ${selectedValues.has(v) ? 'checked' : ''}>
+                    <span>${escapeHtml(v)}</span>
+                </div>`;
+        });
+
+        optionsContainer.innerHTML = html;
+        attachOptionListeners();
+    }
+
+    function attachOptionListeners() {
+        const options = optionsContainer.querySelectorAll('.multi-select-option');
+        options.forEach(opt => {
+            const value = opt.dataset.value;
+            const checkbox = opt.querySelector('input');
+            
+            if (opt._clickHandler) opt.removeEventListener('click', opt._clickHandler);
+            if (checkbox && checkbox._clickHandler) checkbox.removeEventListener('click', checkbox._clickHandler);
+            
+            const handler = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (isUpdating) return;
+                isUpdating = true;
+                
+                if (value === "") {
+                    selectedValues.clear();
+                } else {
+                    if (selectedValues.has("")) selectedValues.delete("");
+                    
+                    if (selectedValues.has(value)) {
+                        selectedValues.delete(value);
+                    } else {
+                        selectedValues.add(value);
+                    }
+                }
+                
+                filtrosColumna[field] = selectedValues.size > 0 ? Array.from(selectedValues) : "";
+                
+                renderOptions();
+                actualizarTrigger();
+                
+                // Renderizar la tabla con la nueva data e instruir cascada al resto de los combos
+                renderTabla();
+                actualizarTodosLosFiltros();
+                
+                isUpdating = false;
+            };
+            
+            opt._clickHandler = handler;
+            opt.addEventListener('click', handler);
+            
+            if (checkbox) {
+                checkbox._clickHandler = handler;
+                checkbox.addEventListener('click', handler);
+            }
+        });
+    }
+
+    function actualizarTrigger() {
+        const placeholder = trigger.querySelector('.placeholder');
+        if (selectedValues.size === 0) {
+            placeholder.textContent = "Todos";
+            trigger.classList.remove('active');
+        } else if (selectedValues.size === 1) {
+            const val = Array.from(selectedValues)[0];
+            placeholder.textContent = val === "__VACIO__" ? "(Vacío)" : val;
+            trigger.classList.add('active');
+        } else {
+            placeholder.textContent = `${selectedValues.size} selec.`;
+            trigger.classList.add('active');
+        }
+    }
+
+    function posicionarDropdown() {
+        if (!dropdown.classList.contains('open')) return;
+        const rect = trigger.getBoundingClientRect();
+        dropdown.style.position = 'fixed';
+        dropdown.style.top = `${rect.bottom + 4}px`;
+        dropdown.style.left = `${rect.left}px`;
+        dropdown.style.width = `${Math.max(rect.width, 240)}px`;
+    }
+
+    const triggerHandler = (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+            if (d !== dropdown) d.classList.remove('open');
+        });
+        
+        dropdown.classList.toggle('open');
+        if (dropdown.classList.contains('open')) {
+            if (searchInput) searchInput.value = ""; // Limpiar buscador al abrir
+            renderOptions();
+            posicionarDropdown();
+            if (searchInput) searchInput.focus();
+        }
+    };
+    
+    trigger._listener = triggerHandler;
+    trigger.addEventListener('click', triggerHandler);
+
+    if (searchInput) {
+        const searchHandler = () => {
+            // El buscador ahora sólo oculta visualmente sin alterar la data renderizada
+            const term = searchInput.value.toLowerCase().trim();
+            const options = optionsContainer.querySelectorAll('.multi-select-option');
+            options.forEach(opt => {
+                if (opt.dataset.value === "") return; // Dejar siempre visible el "Todos"
+                const text = opt.querySelector('span')?.textContent.toLowerCase() || '';
+                opt.style.display = text.includes(term) ? '' : 'none';
+            });
+        };
+        searchInput.addEventListener('input', searchHandler);
+    }
+
+    const outsideClickHandler = (e) => {
+        if (!container.contains(e.target)) {
+            dropdown.classList.remove('open');
+        }
+    };
+    document.addEventListener('click', outsideClickHandler);
+
+    const repositionHandler = () => posicionarDropdown();
+    window.addEventListener('scroll', repositionHandler);
+    window.addEventListener('resize', repositionHandler);
+
+    renderOptions();
+    actualizarTrigger();
+
+    container.refresh = function() {
+        if (isUpdating) return;
+        isUpdating = true;
+        selectedValues = new Set(Array.isArray(filtrosColumna[field]) ? filtrosColumna[field] : []);
+        renderOptions();
+        actualizarTrigger();
+        isUpdating = false;
+    };
+}
+
+function aplicarFiltros() { 
+    renderTabla(); 
+    actualizarTodosLosFiltros(); 
+}
+
+function limpiarTodosFiltros() { 
+    filtrosRapidos = { unidadNegocio:"", area:"", tipoMacro:"", macroproceso:"", prioridad:"" }; 
+    filtrosColumna = {}; 
+    
+    // Limpiar filtros rápidos
+    document.querySelectorAll('.filtro-rapido').forEach(s => s.value = ""); 
+    
+    renderTabla(); 
+    actualizarTodosLosFiltros(); 
+
+    // ←←← IMPORTANTE: Refrescar los multiselects visualmente
+    COLUMNAS.forEach(col => {
+        const container = document.getElementById(`multi_${col.field}`);
+        if (container && typeof container.refresh === 'function') {
+            container.refresh();
+        }
+    });
+}
+    
+function renderHeader() { 
+    const thead = document.getElementById("tableHead"); 
+    let html = '<tr>'; 
+
+    COLUMNAS.forEach((col, i) => { 
+        html += `
+            <th class="font-extrabold" style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: sticky; top: 0; background-color: #e0e0e0; z-index: 30;">
+                ${col.label}
+                <div class="multi-select" id="multi_${col.field}">
+                    <div class="multi-select-trigger" data-field="${col.field}">
+                        <span class="placeholder">Todos</span>
+                    </div>
+                    <div class="multi-select-dropdown">
+                        <div class="multi-select-search">
+                            <input type="text" placeholder="Buscar..." class="search-input">
+                        </div>
+                        <div class="multi-select-options" id="options_${col.field}"></div>
+                    </div>
+                </div>
+                <div class="resize-handle" data-col="${i}" style="z-index: 40;"></div>
+            </th>`;
+    }); 
+
+    html += `<th class="font-extrabold" style="width: ${columnWidth}px; min-width: ${columnWidth}px; position: sticky; top: 0; background-color: #e0e0e0; z-index: 30;">Acción<div class="resize-handle" data-col="${COLUMNAS.length}" style="z-index: 40;"></div></th>`;
+    thead.innerHTML = html;
+
+    // Inicializar multiselects
+    COLUMNAS.forEach(col => {
+        initMultiSelect(col.field);
+    });
+
+    // Mantener funcionalidad de resize
+    document.querySelectorAll('.resize-handle').forEach(handle => { 
+        handle.addEventListener('mousedown', (e) => { 
+            e.preventDefault(); 
+            const startX = e.clientX; 
+            const startWidth = columnWidth; 
+            const onMouseMove = (moveEvent) => { 
+                const newWidth = startWidth + (moveEvent.clientX - startX); 
+                if(newWidth < 100) return; 
+                if(newWidth > 500) return; 
+                aplicarAnchoTodasColumnas(newWidth); 
+            }; 
+            const onMouseUp = () => { 
+                window.removeEventListener('mousemove', onMouseMove); 
+                window.removeEventListener('mouseup', onMouseUp); 
+            }; 
+            window.addEventListener('mousemove', onMouseMove); 
+            window.addEventListener('mouseup', onMouseUp); 
+        }); 
+    }); 
+}
     
     async function editarYSincronizar(id, field, newValue) {
         const index = procesosData.findIndex(p => p.id === id);
@@ -1613,29 +2126,33 @@ async function procesarExcelConValidacion(file) {
             }
         }
         
-        // Configurar eventos de los selects de filtrado rápido
-        document.getElementById("filtroRapidoUnidad").addEventListener("change", () => { 
-            filtrosRapidos.unidadNegocio = document.getElementById("filtroRapidoUnidad").value; 
+// Configurar eventos de los selects de filtrado rápido (Unificados con la exclusión de cascada)
+        document.getElementById("filtroRapidoUnidad").addEventListener("change", (e) => { 
+            filtrosRapidos.unidadNegocio = e.target.value;
             renderTabla(); 
             actualizarTodosLosFiltros(); 
         }); 
-        document.getElementById("filtroRapidoArea").addEventListener("change", () => { 
-            filtrosRapidos.area = document.getElementById("filtroRapidoArea").value; 
+
+        document.getElementById("filtroRapidoArea").addEventListener("change", (e) => { 
+            filtrosRapidos.area = e.target.value;
             renderTabla(); 
             actualizarTodosLosFiltros(); 
         }); 
-        document.getElementById("filtroRapidoTipoMacro").addEventListener("change", () => { 
-            filtrosRapidos.tipoMacro = document.getElementById("filtroRapidoTipoMacro").value; 
+
+        document.getElementById("filtroRapidoTipoMacro").addEventListener("change", (e) => { 
+            filtrosRapidos.tipoMacro = e.target.value;
             renderTabla(); 
             actualizarTodosLosFiltros(); 
         }); 
-        document.getElementById("filtroRapidoMacro").addEventListener("change", () => { 
-            filtrosRapidos.macroproceso = document.getElementById("filtroRapidoMacro").value; 
+
+        document.getElementById("filtroRapidoMacro").addEventListener("change", (e) => { 
+            filtrosRapidos.macroproceso = e.target.value;
             renderTabla(); 
             actualizarTodosLosFiltros(); 
         }); 
-        document.getElementById("filtroRapidoPrioridad").addEventListener("change", () => { 
-            filtrosRapidos.prioridad = document.getElementById("filtroRapidoPrioridad").value; 
+
+        document.getElementById("filtroRapidoPrioridad").addEventListener("change", (e) => { 
+            filtrosRapidos.prioridad = e.target.value;
             renderTabla(); 
             actualizarTodosLosFiltros(); 
         }); 
