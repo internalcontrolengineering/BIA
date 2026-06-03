@@ -45,6 +45,15 @@
             .tab-active, .tab-inactive { padding: 6px 12px !important; font-size: 0.75rem !important; }
             .role-badge { font-size: 10px; padding: 4px 10px; }
             h1 { font-size: 1.5rem !important; }
+            .multi-select-trigger .placeholder {
+                color: #000000 !important;
+                font-size: 0.7rem;
+                font-weight: 600 !important;
+            }
+    .multi-select-trigger.active .placeholder {
+        color: #000000 !important;
+    }
+
         }
         
         /* En tablets */
@@ -145,7 +154,7 @@
 }
 
 .multi-select-dropdown {
-    position: fixed !important;
+    position: absolute !important;
     background: white;
     border: 1px solid #c0c0c0;
     border-radius: 6px;
@@ -155,6 +164,9 @@
     overflow-y: auto;
     display: none;
     width: 240px;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
 }
 
 .multi-select-dropdown.open {
@@ -517,6 +529,122 @@ select {
     font-size: 0.8rem;
     background: white;
 }
+/* SOLUCIÓN DEFINITIVA PARA MÓVIL - FORZAR TEXTO NEGRO */
+@media (max-width: 768px) {
+    .multi-select-trigger,
+    .multi-select-trigger *,
+    .multi-select-trigger .placeholder,
+    .multi-select-trigger span,
+    .multi-select-trigger.active,
+    .multi-select-trigger.active *,
+    .multi-select-trigger.active .placeholder {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        -webkit-text-fill-color: #000000 !important;
+        opacity: 1 !important;
+    }
+    
+    .multi-select-trigger.active,
+    .multi-select-trigger.active * {
+        background-color: #fff9e6 !important;
+    }
+}
+/* Forzar que el texto herede color negro */
+.multi-select-trigger .placeholder {
+    color: #000000 !important;
+    background: transparent !important;
+    display: inline-block !important;
+    visibility: visible !important;
+}
+
+/* Eliminar cualquier opacidad */
+.multi-select-trigger {
+    opacity: 1 !important;
+}
+
+/* Tamaños personalizados para BIA y subtítulo */
+@media (min-width: 768px) {
+    h1.font-extrabold {
+        font-size: 4rem !important;  /* Tamaño de BIA en PC */
+    }
+    
+    p.font-semibold {
+        font-size: 2.5rem !important;  /* Tamaño del subtítulo en PC */
+    }
+}
+
+@media (max-width: 767px) {
+    h1.font-extrabold {
+        font-size: 2.5rem !important;  /* Tamaño de BIA en móvil */
+    }
+    
+    p.font-semibold {
+        font-size: 1.5rem !important;  /* Tamaño del subtítulo en móvil */
+    }
+}
+
+/* Login - Tamaños personalizados */
+#loginBia {
+    font-size: 2.5rem !important;  /* móvil por defecto */
+}
+
+#loginSubtitulo {
+    font-size: 1.5rem !important;  /* móvil por defecto */
+}
+
+@media (min-width: 768px) {
+    #loginBia {
+        font-size: 4.5rem !important;  /* PC */
+    }
+    #loginSubtitulo {
+        font-size: 2.5rem !important;  /* PC */
+    }
+}
+
+/* Permitir que el dropdown sobresalga de la celda */
+.matriz-table th {
+    overflow: visible !important;
+    position: relative !important;
+}
+
+/* Asegurar que el dropdown tenga mayor prioridad visual */
+.multi-select {
+    overflow: visible !important;
+    position: relative !important;
+}
+
+.multi-select-dropdown {
+    position: fixed !important;  /* CAMBIAR DE absolute A fixed */
+    z-index: 99999 !important;
+    max-height: 280px;
+    overflow-y: auto;
+    min-width: 200px;
+    width: auto !important;
+    max-width: 300px;
+}
+
+/* Para móvil, ajustar el ancho máximo */
+@media (max-width: 768px) {
+    .multi-select-dropdown {
+        max-width: 250px;
+        min-width: 180px;
+        left: 0;
+        right: auto;
+    }
+}
+
+/* El contenedor de la tabla necesita mantener scroll pero no cortar el dropdown */
+.table-container {
+    overflow-x: auto;
+    overflow-y: auto;  /* Mantener auto para scroll */
+    max-height: 55vh;
+    position: relative;
+}
+
+/* La tabla no debe tener overflow que corte */
+.matriz-table {
+    overflow: visible !important;
+}
 
     </style>
 </head>
@@ -525,8 +653,8 @@ select {
 <div id="loginScreen" class="min-h-screen flex flex-col items-center justify-center p-4" style="background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);">
     <div class="text-center mb-6">
         <img src="https://github.com/internalcontrolengineering/Desarrollos/blob/main/LogoCI-BC.png?raw=true" alt="Logo Control Interno" class="h-16 md:h-20 mx-auto mb-3 object-contain">
-        <h1 class="text-4xl md:text-6xl font-bold text-white mb-1">BIA</h1>
-        <h2 class="text-xl md:text-3xl font-bold text-gray-300">Levantamiento de Procesos</h2>
+        <h1 class="font-bold text-white mb-1" id="loginBia">BIA</h1>
+<h2 class="font-bold text-gray-300" id="loginSubtitulo">Levantamiento de Procesos</h2>
     </div>
     <div class="carousel-container">
         <button id="carouselLeft" class="carousel-btn"><i class="fas fa-chevron-left fa-2x"></i></button>
@@ -563,8 +691,8 @@ select {
         </div>
         
         <div class="text-center mb-4 md:mb-5">
-            <h1 class="text-3xl md:text-5xl font-extrabold text-gray-800">BIA</h1>
-            <p class="text-sm md:text-lg font-semibold text-gray-600 mt-1 md:mt-2">Levantamiento de Procesos</p>
+            <h1 class="font-extrabold text-gray-800" style="font-size: 2rem;">BIA</h1>
+            <p class="font-semibold text-gray-600 mt-1" style="font-size: 0.75rem;">Levantamiento de Procesos</p>
             <div id="syncIndicator" class="sync-indicator">
                 <i class="fas fa-cloud-upload-alt"></i>
                 <span>Sincronizado</span>
@@ -674,7 +802,7 @@ select {
             <div class="w-px h-5 md:h-6 bg-gray-400"></div>
             <div class="flex flex-col leading-tight">
                 <span class="text-[0.55rem] md:text-xs text-gray-700 font-medium">BIA - Levantamiento de Procesos</span>
-                <span class="text-[0.45rem] md:text-[0.55rem] text-gray-500 font-medium">V2.0 | Sincronización Automática | Mayo 2026</span>
+                <span class="text-[0.45rem] md:text-[0.55rem] text-gray-500 font-medium">V1.0 | Mayo 2026</span>
             </div>
         </div>
     </footer>
@@ -1472,14 +1600,47 @@ function initMultiSelect(field) {
         }
     }
 
-    function posicionarDropdown() {
-        if (!dropdown.classList.contains('open')) return;
-        const rect = trigger.getBoundingClientRect();
-        dropdown.style.position = 'fixed';
-        dropdown.style.top = `${rect.bottom + 4}px`;
-        dropdown.style.left = `${rect.left}px`;
-        dropdown.style.width = `${Math.max(rect.width, 240)}px`;
+function posicionarDropdown() {
+    if (!dropdown.classList.contains('open')) return;
+    
+    const rect = trigger.getBoundingClientRect();
+    
+    // NUEVO: Si el filtro se oculta por el scroll del contenedor, cerramos el menú
+    const containerRect = document.querySelector('.table-container')?.getBoundingClientRect();
+    if (containerRect) {
+        if (rect.right < containerRect.left || rect.left > containerRect.right) {
+            dropdown.classList.remove('open');
+            return;
+        }
     }
+    const dropdownHeight = 280;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    // Posicionar usando fixed
+    dropdown.style.position = 'fixed';
+    
+    // Determinar si mostrar arriba o abajo
+    if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+        dropdown.style.top = 'auto';
+        dropdown.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+        dropdown.style.marginTop = '0';
+        dropdown.style.marginBottom = '0';
+    } else {
+        dropdown.style.top = `${rect.bottom + 4}px`;
+        dropdown.style.bottom = 'auto';
+        dropdown.style.marginTop = '0';
+        dropdown.style.marginBottom = '0';
+    }
+    
+    // Posición horizontal
+    dropdown.style.left = `${rect.left}px`;
+    
+    // Ajustar ancho
+    const triggerWidth = trigger.offsetWidth;
+    dropdown.style.width = `${Math.max(triggerWidth, 200)}px`;
+    dropdown.style.maxWidth = `${Math.min(triggerWidth + 50, 300)}px`;
+}
 
     const triggerHandler = (e) => {
         e.stopPropagation();
@@ -1523,6 +1684,12 @@ function initMultiSelect(field) {
     const repositionHandler = () => posicionarDropdown();
     window.addEventListener('scroll', repositionHandler);
     window.addEventListener('resize', repositionHandler);
+    
+    // NUEVO: Escuchar el movimiento interno de la tabla para recalcular la posición
+    const tableContainer = document.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.addEventListener('scroll', repositionHandler);
+    }
 
     renderOptions();
     actualizarTrigger();
