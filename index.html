@@ -580,7 +580,7 @@ select {
             <div class="filtros-grid">
                 <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Unidad Negocio</label><select id="filtroRapidoUnidad" class="filtro-rapido w-full"><option value="">Todas</option></select></div>
                 <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Área</label><select id="filtroRapidoArea" class="filtro-rapido w-full"><option value="">Todas</option></select></div>
-                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo Macro</label><select id="filtroRapidoTipoMacro" class="filtro-rapido w-full"><option value="">Todos</option></select></div>
+                <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo Macroproceso</label><select id="filtroRapidoTipoMacro" class="filtro-rapido w-full"><option value="">Todos</option></select></div>
                 <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Macroproceso</label><select id="filtroRapidoMacro" class="filtro-rapido w-full"><option value="">Todos</option></select></div>
                 <div><label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Prioridad</label><select id="filtroRapidoPrioridad" class="filtro-rapido w-full"><option value="">Todas</option></select></div>
             </div>
@@ -1137,7 +1137,7 @@ async function subirRegistroASupabase(registro) {
     const COLUMNAS = [
         { field: "unidadNegocio", label: "Unidad Negocio", expected: "Unidad Negocio", tipo: "select", opciones: ["COMA", "SurtiCOMA", "Súper Willys"] },
         { field: "area", label: "Área", expected: "Área", tipo: "select", opciones: ["Auditoría Interna","Comercial","Construcción","Contraloría","Control Vehicular","Expansión","Finanzas","Jurídico","Logística","Operaciones","Recursos Humanos","Seguridad Patrimonial","Suministros","Tecnologías de la Información","Ventas"] },
-        { field: "tipoMacro", label: "Tipo Macro", expected: "Tipo Macro", tipo: "select", opciones: ["Primario", "Soporte"] },
+        { field: "tipoMacro", label: "Tipo Macroproceso", expected: "Tipo Macroproceso", tipo: "select", opciones: ["Operativo", "Estratégico", "Soporte"] },
         { field: "macroproceso", label: "Macroproceso", expected: "Macroproceso", tipo: "textarea" },
         { field: "proceso", label: "Proceso", expected: "Proceso", tipo: "textarea" },
         { field: "procedimiento", label: "Procedimiento", expected: "Procedimiento", tipo: "textarea" },
@@ -1246,7 +1246,7 @@ function actualizarTodosLosFiltros() {
         const camposRapidos = [
             {id: "filtroRapidoUnidad",     field: "unidadNegocio", label: "Unidad Negocio"},
             {id: "filtroRapidoArea",       field: "area",          label: "Área"},
-            {id: "filtroRapidoTipoMacro",  field: "tipoMacro",     label: "Tipo Macro"},
+            {id: "filtroRapidoTipoMacro",  field: "tipoMacro",     label: "Tipo Macroproceso"},
             {id: "filtroRapidoMacro",      field: "macroproceso",  label: "Macroproceso"},
             {id: "filtroRapidoPrioridad",  field: "prioridad",     label: "Prioridad"}
         ]; 
