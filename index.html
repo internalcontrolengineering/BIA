@@ -534,7 +534,6 @@ select {
     .multi-select-trigger,
     .multi-select-trigger *,
     .multi-select-trigger .placeholder,
-    .multi-select-trigger span,
     .multi-select-trigger.active,
     .multi-select-trigger.active *,
     .multi-select-trigger.active .placeholder {
@@ -921,7 +920,8 @@ async function subirRegistroASupabase(registro) {
             riesgos: registro.riesgos || '',
             partesRelacionadas: registro.partesRelacionadas || '',
             prioridad: registro.prioridad || '',
-            comentarios: registro.comentarios || ''
+            comentarios: registro.comentarios || '',
+            registro: registro.registro || null
         };
 
         const { error } = await supabaseClient
@@ -1275,7 +1275,8 @@ async function subirRegistroASupabase(registro) {
         { field: "riesgos", label: "Riesgos Inherentes", expected: "Riesgos Inherentes", tipo: "textarea" },
         { field: "partesRelacionadas", label: "Partes Relacionadas", expected: "Partes Relacionadas", tipo: "textarea" },
         { field: "prioridad", label: "Prioridad", expected: "Prioridad", tipo: "select", opciones: ["Crítica", "Alta", "Media", "Baja"] },
-        { field: "comentarios", label: "Comentarios", expected: "Comentarios", tipo: "textarea" }
+        { field: "comentarios", label: "Comentarios", expected: "Comentarios", tipo: "textarea" },
+        { field: "registro", label: "Registro", expected: "Registro", tipo: "text" }
     ];
 
 let procesosData = [], nextId = 1, filtrosRapidos = { unidadNegocio: "", area: "", tipoMacro: "", macroproceso: "", prioridad: "" }, filtrosColumna = {}, columnWidth = 160;
@@ -1784,14 +1785,21 @@ function renderHeader() {
     async function editarYSincronizar(id, field, newValue) {
         const index = procesosData.findIndex(p => p.id === id);
         if (index !== -1) {
+            // Actualizar el campo específico
             procesosData[index][field] = newValue;
+            
+            // Actualizar automáticamente la fecha/hora en el campo 'registro'
+            const now = new Date();
+            const fechaHora = now.toLocaleString('es-ES', { hour12: false });
+            procesosData[index]['registro'] = fechaHora;
+            
             guardarStorage();
             renderTabla();
             actualizarTodosLosFiltros();
             
             if (supabaseClient) {
                 actualizarIndicadorSync('syncing', 'Sincronizando edición...');
-                const exito = await actualizarRegistroEnSupabase(id, { [field]: newValue });
+                const exito = await actualizarRegistroEnSupabase(id, { [field]: newValue, registro: fechaHora });
                 if(exito) {
                     actualizarIndicadorSync('synced');
                     mostrarNotificacion("Cambio guardado en la nube", "success");
@@ -1842,7 +1850,7 @@ function renderHeader() {
         const dataFiltrada = getDataFiltrada(); 
         const tbody = document.getElementById("tablaBody"); 
         if (dataFiltrada.length === 0) { 
-            tbody.innerHTML = '<tr><td colspan="14" class="text-center py-10 text-gray-400">📋 No hay procesos registrados. Haga clic en "Agregar Fila" o realice una "Carga Masiva" para comenzar.</td></tr>'; 
+            tbody.innerHTML = '<tr><td colspan="15" class="text-center py-10 text-gray-400">📋 No hay procesos registrados. Haga clic en "Agregar Fila" o realice una "Carga Masiva" para comenzar.</td></tr>'; 
             document.getElementById("contadorRegistros").innerText = "0 registros"; 
             return; 
         } 
@@ -1898,8 +1906,12 @@ function renderHeader() {
     }
     
     async function agregarFila() { 
-        const nueva = { id: nextId++ }; 
-        COLUMNAS.forEach(col => { nueva[col.field] = ''; }); 
+        const now = new Date();
+        const fechaHora = now.toLocaleString('es-ES', { hour12: false });
+        const nueva = { id: nextId++, registro: fechaHora }; 
+        COLUMNAS.forEach(col => { 
+            if (col.field !== 'registro') nueva[col.field] = ''; 
+        }); 
         procesosData.push(nueva); 
         guardarStorage(); 
         renderTabla(); 
@@ -2063,9 +2075,13 @@ function renderHeader() {
                     for (let imp of imported) { 
                         const existe = procesosData.findIndex(ex => ex.unidadNegocio === imp.unidadNegocio && ex.area === imp.area && ex.macroproceso === imp.macroproceso && ex.proceso === imp.proceso); 
                         if (existe !== -1) { 
-                            procesosData[existe] = { ...procesosData[existe], ...imp, id: procesosData[existe].id }; 
+                            const now = new Date();
+                            const fechaHora = now.toLocaleString('es-ES', { hour12: false });
+                            procesosData[existe] = { ...procesosData[existe], ...imp, id: procesosData[existe].id, registro: fechaHora }; 
                         } else { 
-                            procesosData.push({ id: nextId++, ...imp }); 
+                            const now = new Date();
+                            const fechaHora = now.toLocaleString('es-ES', { hour12: false });
+                            procesosData.push({ id: nextId++, ...imp, registro: fechaHora }); 
                         } 
                     } 
                     guardarStorage(); 
@@ -2153,6 +2169,7 @@ async function procesarExcelConValidacion(file) {
                     let camposActualizados = [];
                     
                     for (const col of COLUMNAS) { 
+                        if (col.field === 'registro') continue; // No actualizar registro desde el Excel
                         const nuevoValor = nuevoRegistro[col.field];
                         const valorActual = normalizarValor(procesosData[existeIndex][col.field]);
                         
@@ -2164,6 +2181,10 @@ async function procesarExcelConValidacion(file) {
                     } 
                     
                     if (huboCambios) {
+                        // Actualizar la fecha/hora de modificación
+                        const now = new Date();
+                        const fechaHora = now.toLocaleString('es-ES', { hour12: false });
+                        procesosData[existeIndex]['registro'] = fechaHora;
                         actualizados++;
                         console.log(`✅ Actualizado: ${nuevoRegistro.unidadNegocio} - ${nuevoRegistro.proceso} - ${nuevoRegistro.procedimiento}`);
                         if (camposActualizados.length > 0) {
@@ -2172,7 +2193,10 @@ async function procesarExcelConValidacion(file) {
                     }
                 } else { 
                     // Es un registro completamente nuevo
+                    const now = new Date();
+                    const fechaHora = now.toLocaleString('es-ES', { hour12: false });
                     nuevoRegistro.id = nextId++; 
+                    nuevoRegistro.registro = fechaHora;
                     nuevosRegistros.push(nuevoRegistro); 
                     agregados++; 
                     console.log(`➕ Nuevo: ${nuevoRegistro.unidadNegocio} - ${nuevoRegistro.proceso} - ${nuevoRegistro.procedimiento}`);
